@@ -21,7 +21,10 @@ async function responseMessage(response: Response, fallback: string) {
 
 function ClientRegistration() {
   const router = useRouter();
-  const inviteToken = useSearchParams().get("invite")?.trim() ?? "";
+  const search = useSearchParams();
+  const inviteToken = search.get("invite")?.trim() ?? "";
+  const next = search.get("next");
+  const safeNext = next?.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
   const [username, setUsername] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [status, setStatus] = useState("");
@@ -56,7 +59,7 @@ function ClientRegistration() {
         router.replace("/painel");
         return;
       }
-      router.replace("/meus-agendamentos");
+      router.replace(safeNext ?? "/meus-agendamentos");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Não foi possível criar a conta");
     } finally {

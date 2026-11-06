@@ -213,7 +213,11 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     const confirmed = await request("PATCH",
       `/api/tenants/${tenantA}/appointments/${bookingId}/confirm`, undefined, ownerCookie);
     assert.equal(confirmed.status, 200);
-    assert.equal((await request("GET", "/api/my/bookings", undefined, acceptedCookie)).status, 200);
+    const mine = await request("GET", "/api/my/bookings", undefined, acceptedCookie);
+    assert.equal(mine.status, 200);
+    const myBookings = mine.json as unknown as { tenant: { timezone: string }; id: string }[];
+    assert.ok(myBookings.some(item => item.id === bookingId && item.tenant.timezone === "America/Sao_Paulo"),
+      "A interface do cliente precisa do fuso da barbearia para mostrar os horários corretamente");
     const cancel = await request("PATCH", `/api/b/${slugA}/bookings/${bookingId}/cancel`,
       undefined, acceptedCookie);
     assert.equal(cancel.status, 200);

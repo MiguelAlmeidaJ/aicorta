@@ -36,3 +36,7 @@
 - [x] Patch 5: calendário semanal/diário, filtro por profissional e onboarding visual do ADMIN
 - [ ] Homologar execução real da CI, responsividade e fluxo completo em navegador
 - [ ] Testar reserva simultânea com múltiplas réplicas e monitorar erros operacionais
+
+- [x] Patch 05.1: área de reservas do cliente com histórico, remarcação e identidade visual consistente
+- [x] Patch 05.1: retorno ao agendamento após cadastro de cliente e tratamento de conflito com recarga de horários
+- [ ] Patch 05: homologação visual manual em desktop/mobile com o roteiro `docs/demo-roteiro.md`

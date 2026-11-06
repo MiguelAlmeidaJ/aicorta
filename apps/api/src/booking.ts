@@ -135,7 +135,7 @@ export class BookingService {
   async mine(userId: string) {
     return this.db.appointment.findMany({ where: { clientId: userId },
       select: { id: true, tenantId: true, serviceId: true, employeeMembershipId: true, startsAt: true, endsAt: true, status: true, priceCents: true,
-        service: { select: { name: true } }, tenant: { select: { name: true, slug: true } },
+        service: { select: { name: true } }, tenant: { select: { name: true, slug: true, timezone: true } },
         employee: { select: { user: { select: { name: true } } } } },
       orderBy: { startsAt: "desc" }, take: 100 });
   }

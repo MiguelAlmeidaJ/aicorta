@@ -104,6 +104,11 @@ export default function PublicBarbershopPage() {
       if (response.status === 409) {
         setError("Esse horário acabou de ser reservado. Escolha outro.");
         setSelectedSlot("");
+        const query = new URLSearchParams({ date: day, serviceId, membershipId: professionalId });
+        try {
+          const fresh = await apiJson<Slots>(`/b/${encodeURIComponent(slug)}/slots?${query}`);
+          setSlots(fresh.slots);
+        } catch { setSlots([]); }
         return;
       }
       if (!response.ok) {
@@ -255,7 +260,7 @@ export default function PublicBarbershopPage() {
           <p className="mt-4 text-center text-[11px] leading-5 text-[#8b9087]">
             É preciso entrar na sua conta para reservar. A barbearia confirmará o atendimento.
           </p>
-          <Link href="/cadastro-cliente" className="mt-4 block text-center text-xs font-semibold text-[#51574e] underline underline-offset-4">
+          <Link href={`/cadastro-cliente?next=${encodeURIComponent("/b/" + slug)}`} className="mt-4 block text-center text-xs font-semibold text-[#51574e] underline underline-offset-4">
             Ainda não tem conta? Cadastre-se
           </Link>
         </aside>
