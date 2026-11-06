@@ -14,7 +14,8 @@ export default function LoginPage() {
     try {
       const response = await fetch(`${API}/auth/login`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
       if (!response.ok) throw new Error("Não foi possível entrar. Verifique as credenciais.");
-      router.replace("/painel");
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.replace(next?.startsWith("/") && !next.startsWith("//") ? next : "/painel");
     } catch (e) { setMessage(e instanceof Error ? e.message : "Erro ao entrar"); }
     finally { setLoading(false); }
   }

@@ -18,7 +18,8 @@
 - [ ] Testes E2E de isolamento multi-tenant e motor anti-conflito de agenda
 - [x] Agenda 1.0: horários da loja/profissionais, folgas, disponibilidade e bloqueio transacional por profissional
 - [ ] Exclusion constraint no PostgreSQL, testes E2E com concorrência real e UI da agenda
-- [ ] Agendamento público via slug, remarcação e cancelamento
+- [x] Booking 1.0: catálogo e horários por slug, reserva autenticada, cancelamento e remarcação
+- [ ] Testes E2E de concorrência com PostgreSQL real, migração SQL de exclusão validada e monitoramento
 - [ ] Notificações WhatsApp/e-mail e fila de tarefas
 - [ ] Pagamentos, assinaturas SaaS e relatórios
 - [ ] Política LGPD, auditoria, observabilidade e deploy

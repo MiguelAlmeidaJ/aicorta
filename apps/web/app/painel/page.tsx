@@ -31,6 +31,6 @@ export default function PanelPage() {
   return <main className="shell"><header className="nav"><Link href="/" className="brand">✂ AICorta</Link><button onClick={logout}>Sair</button></header>
     <section className="hero"><span className="eyebrow">Painel AICorta</span><h1>{profile ? `Olá, ${profile.name}` : "Carregando..."}</h1>
     {profile && <><p>Seu perfil: {profile.globalRole === "SYSTEM" ? "Sistema" : "Usuário"} · @{profile.username}</p>
-      <h2>Estabelecimentos</h2>{profile.memberships.length === 0 ? <p>Nenhum estabelecimento vinculado.</p> : <ul>{profile.memberships.map(m => <li key={m.tenantId}>{m.tenant.name} — {m.role} ({m.tenant.status})</li>)}</ul>}</>}
+      <h2>Estabelecimentos</h2><p><Link href="/meus-agendamentos">Meus agendamentos</Link></p>{profile.memberships.length === 0 ? <p>Nenhum estabelecimento vinculado.</p> : <ul>{profile.memberships.map(m => <li key={m.tenantId}>{m.tenant.name} — {m.role} ({m.tenant.status}) · <Link href={"/b/" + m.tenant.slug}>Página de agendamentos</Link></li>)}</ul>}</>}
     {error && <p role="alert">{error}</p>}</section></main>;
 }

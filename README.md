@@ -158,3 +158,29 @@ Rotas (prefixo `/api/tenants/:tenantId/agenda`):
 A rota de criação de agendamentos internos usa **pg_advisory_xact_lock** por tenant+profissional e confere expediente, folga, serviço e conflito sob o mesmo lock, inclusive entre réplicas da API. Todos os agendamentos que escrevem no banco devem usar o mesmo protocolo transacional; escritas diretas no banco não são protegidas pelo lock. Uma exclusion constraint de PostgreSQL e testes E2E de concorrência são necessários antes de agendamento público.
 
 Aplicar migration local: `pnpm db:migrate` (nome: `agenda_1_0`), depois `pnpm db:generate`. Não altera registros SYSTEM existentes.
+
+## Booking 1.0 — fluxo público por slug
+
+- Página pública: `/b/:slug` (catálogo, profissionais e horários disponíveis).
+- Área do cliente: `/meus-agendamentos` (consultar, cancelar e remarcar).
+- `GET /api/b/:slug`: catálogo e profissionais da barbearia ativa.
+- `GET /api/b/:slug/slots?serviceId=...&membershipId=...&date=AAAA-MM-DD`: disponibilidade pública.
+- `POST /api/b/:slug/bookings`: **sessão autenticada**; body com `serviceId`, `employeeMembershipId`, `startsAt` em ISO UTC. O backend usa o usuário logado como cliente e cria vínculo CLIENT somente se ainda não houver outro papel no estabelecimento.
+- `GET /api/my/bookings`: reservas do cliente logado.
+- `PATCH /api/b/:slug/bookings/:id/cancel`: cancela a própria reserva (mínimo 2h de antecedência); ADMIN também pode cancelar pela API.
+- `PATCH /api/b/:slug/bookings/:id/reschedule`: remarca a própria reserva mantendo serviço e profissional; exige 2h de antecedência, valida expediente e conflito, volta ao estado PENDING.
+- `PATCH /api/tenants/:tenantId/appointments/:appointmentId/confirm`: equipe confirma reservas pendentes.
+
+### Proteção adicional contra dupla reserva
+
+O lock transacional por profissional continua obrigatório nos fluxos de criação e remarcação. A proteção **independente no PostgreSQL** está em `apps/api/sql/booking_exclusion.sql` e deve ser aplicada **após todas as migrations Prisma e antes de liberar agendamentos públicos**:
+
+```bash
+pnpm db:migrate
+pnpm db:generate
+docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U aicorta -d aicorta < apps/api/sql/booking_exclusion.sql
+```
+
+**Atenção:** o SQL instala uma exclusão GiST para reservas PENDING e CONFIRMED, bloqueando sobreposições por tenant/profissional. Verifique e corrija conflitos preexistentes antes de executá-lo; falhará se já houver reservas sobrepostas. Não execute duas vezes sem remover/verificar a constraint. Isso ainda não está integrado às migrations versionadas do Prisma — na fase de deploy consolidaremos a migration após revisar o histórico local.
+
+Reservas iniciam como PENDING. Os horários são confirmados somente pelo estabelecimento; futuras integrações poderão notificar o cliente. A disponibilidade pode mudar entre consulta e confirmação e será revalidada no momento da gravação. Ainda faltam testes E2E com concorrência real, verificação do workflow completo em navegadores, política de cancelamento configurável e gateway de pagamentos.
