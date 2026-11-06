@@ -1,4 +1,5 @@
 "use client";
+import { BrandLogo } from "../../components/brand/brand-provider";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export default function MyBookingsPage() {
   const when = (iso: string) => new Intl.DateTimeFormat("pt-BR",
     { dateStyle: "full", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(iso));
   return <main className="shell">
-    <header className="nav"><Link href="/" className="brand">✂ AICorta</Link><Link href="/painel">Painel</Link></header>
+    <header className="nav"><Link href="/" className="brand"><BrandLogo className="h-12 max-w-[230px]"/></Link><Link href="/painel">Painel</Link></header>
     <section className="booking-wrap"><span className="eyebrow">Área do cliente</span><h1>Meus agendamentos</h1>
       <p role="status">{status}</p>
       {items.length === 0 && <p>Nenhum agendamento registrado.</p>}

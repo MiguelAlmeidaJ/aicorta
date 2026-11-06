@@ -223,3 +223,19 @@ model OwnerInvite {
   @@index([expiresAt])
   @@index([issuedById, createdAt])
 }
+
+model PlatformBrand {
+  id           String   @id @default("platform")
+  name         String   @default("AICorta")
+  black        String   @default("#000000")
+  navy         String   @default("#050A30")
+  gold         String   @default("#F2C225")
+  silver       String   @default("#D9D9D9")
+  logo         Bytes?
+  logoMime     String?
+  darkLogo     Bytes?
+  darkLogoMime String?
+  favicon      Bytes?
+  faviconMime  String?
+  updatedAt    DateTime @updatedAt
+}

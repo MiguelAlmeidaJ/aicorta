@@ -26,4 +26,6 @@
 - [x] Dashboard SYSTEM 1.0 e painel da barbearia com sidebar responsiva, Tailwind v4 e dados reais
 - [ ] Relatórios financeiros, paginação da agenda e melhorias de gestão de equipe
 - [ ] Pagamentos, assinaturas SaaS e relatórios
+- [x] Branding 1.0: identidade do manual oficial e configurações de logo/favicon/cores por SYSTEM
+- [ ] Licenciamento comercial das fontes especiais e CDN para ativos de marca
 - [ ] Política LGPD, auditoria, observabilidade e deploy

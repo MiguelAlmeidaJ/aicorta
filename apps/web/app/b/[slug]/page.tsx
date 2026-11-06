@@ -1,4 +1,5 @@
 "use client";
+import { BrandLogo } from "../../../components/brand/brand-provider";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -72,7 +73,7 @@ export default function BarberPage() {
   }
 
   return <main className="shell">
-    <header className="nav"><Link href="/" className="brand">✂ AICorta</Link><Link href="/meus-agendamentos">Minhas reservas</Link></header>
+    <header className="nav"><Link href="/" className="brand"><BrandLogo className="h-12 max-w-[230px]"/></Link><Link href="/meus-agendamentos">Minhas reservas</Link></header>
     <section className="booking-wrap">
       <span className="eyebrow">Agendamento online</span>
       <h1>{catalog?.tenant.name ?? "Carregando barbearia..."}</h1>

@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0d0e0d;
+  --color-ink: #000000;
+  --color-brand-navy: #050a30;
+  --color-brand-gold: #f2c225;
+  --color-brand-silver: #d9d9d9;
   --color-ice: #f6f7f4;
   --color-canvas: #f0f1ed;
   --color-stroke: #e5e7e1;
@@ -9,22 +12,22 @@
   --font-sans: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
 }
 
-:root { color-scheme: light; }
+:root { color-scheme: light; --brand-black: #000000; --brand-navy: #050a30; --brand-gold: #f2c225; --brand-silver: #d9d9d9; }
 body { background: #f6f7f4; color: #0d0e0d; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
-::selection { background: #0d0e0d; color: #f6f7f4; }
+::selection { background: var(--brand-black); color: #f6f7f4; }
 
 /* Lightweight compatibility for public booking and authentication pages.
    Dashboard screens use Tailwind utility classes exclusively. */
 .shell { width: min(1120px, calc(100% - 40px)); margin: auto; min-height: 100vh; display: flex; flex-direction: column; }
 .nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 28px 0; }
-.brand { color: #0d0e0d; font-size: 22px; font-weight: 850; letter-spacing: -.06em; }
+.brand { color: var(--brand-black); font-size: 22px; font-weight: 850; letter-spacing: -.06em; }
 .hero { padding: clamp(80px, 10vw, 150px) 0; max-width: 790px; }
 .eyebrow { color: #777c74; font-size: 12px; letter-spacing: .17em; text-transform: uppercase; font-weight: 750; }
 .hero h1 { font-size: clamp(46px, 7vw, 85px); line-height: 1.04; letter-spacing: -.065em; margin: 22px 0; font-weight: 850; }
-.hero h1 em { color: #8c9389; font-style: normal; }
+.hero h1 em { color: var(--brand-navy); font-style: normal; }
 .hero p { color: #72776f; font-size: 19px; max-width: 600px; line-height: 1.7; }
 .actions { display: flex; align-items: center; gap: 24px; margin-top: 36px; flex-wrap: wrap; }
 .button, .auth button, .booking-steps > button, .booking-item > button { display: inline-flex; justify-content: center; align-items: center; background: #0d0e0d; color: #f6f7f4; border-radius: 12px; padding: 13px 21px; font-size: 14px; font-weight: 700; }

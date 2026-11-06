@@ -1,4 +1,5 @@
 "use client";
+import { BrandLogo } from "../../components/brand/brand-provider";
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -36,7 +37,7 @@ export default function AcceptInvitePage() {
     finally { setBusy(false); }
   }
   return <main className="auth">
-    <Link href="/" className="brand">✂ AICorta</Link>
+    <Link href="/" className="brand"><BrandLogo className="h-12 max-w-[230px]"/></Link>
     <h1>Aceitar convite</h1>
     <p>Entre com sua conta AICorta e informe o código recebido do estabelecimento.</p>
     <form onSubmit={submit}>

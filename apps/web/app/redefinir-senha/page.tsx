@@ -1,4 +1,5 @@
 "use client";
+import { BrandLogo } from "../../components/brand/brand-provider";
 import { Suspense, FormEvent, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -17,7 +18,7 @@ function ResetForm() {
     setOk(response.ok);
     setMessage(response.ok ? "Senha alterada! Entre com sua nova senha." : "Link inválido ou expirado. Solicite outro.");
   }
-  return <main className="auth"><Link href="/" className="brand">✂ AICorta</Link><h1>Redefinir senha</h1>
+  return <main className="auth"><Link href="/" className="brand"><BrandLogo className="h-12 max-w-[230px]"/></Link><h1>Redefinir senha</h1>
     {!token ? <p>Link inválido. Solicite uma nova recuperação.</p> : <form onSubmit={submit}>
     <label>Nova senha<input type="password" minLength={10} required value={password} onChange={e=>setPassword(e.target.value)}/></label>
     <button type="submit">Salvar nova senha</button></form>}

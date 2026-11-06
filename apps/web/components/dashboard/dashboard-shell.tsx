@@ -8,6 +8,7 @@ import {
   UsersRound, UserRoundPlus, X, type LucideIcon,
 } from "lucide-react";
 import { apiFetch, apiJson } from "../../lib/api";
+import { BrandLogo } from "../brand/brand-provider";
 
 type Membership = { tenantId: string; role: string; tenant: { name: string; slug: string; status: string } };
 type Profile = { id: string; name: string; username: string; globalRole: string; memberships: Membership[] };
@@ -52,6 +53,7 @@ export function DashboardShell({ children, mode, tenantId }: {
     { title: "Visão geral", href: "/system", icon: LayoutDashboard, exact: true },
     { title: "Barbearias", href: "/system/barbearias", icon: Scissors },
     { title: "Convites", href: "/system/convites", icon: UserRoundPlus },
+    { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2 },
   ];
   const tenantItems: Item[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboard, exact: true },
@@ -97,10 +99,8 @@ export function DashboardShell({ children, mode, tenantId }: {
   </nav>;
 
   const sidebar = <div className="flex h-full flex-col">
-    <Link href="/painel" className="flex items-center gap-3 px-3 py-5">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7f8f5] text-[#101210]"><Scissors size={22} strokeWidth={2.4}/></span>
-      <div><span className="block text-[23px] font-black tracking-[-.085em] text-white">AICorta<span className="text-[#8d938a]">.</span></span>
-        <span className="block text-[9px] font-semibold uppercase tracking-[.24em] text-[#8f948c]">Gestão inteligente</span></div>
+    <Link href="/painel" className="flex min-h-[104px] items-center px-3 py-5">
+      <BrandLogo dark className="h-[58px] w-full"/>
     </Link>
     <div className="mt-8 px-3">
       <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Workspace</p>
@@ -134,8 +134,8 @@ export function DashboardShell({ children, mode, tenantId }: {
       </Link>
     </div>
     <div className="border-t border-[#31342f] p-4">
-      <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#242723] p-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9ebe5] text-xs font-bold text-[#161715]">{profileInitials}</span>
+      <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#161616] p-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-gold)] text-xs font-bold text-[#161715]">{profileInitials}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-semibold text-white">{profile.name}</span>
           <span className="block truncate text-[11px] text-[#969c93]">@{profile.username}</span>
@@ -149,10 +149,10 @@ export function DashboardShell({ children, mode, tenantId }: {
   </div>;
 
   return <div className="min-h-screen bg-[#f6f7f4] text-[#161815]">
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] bg-[#171916] xl:block">{sidebar}</aside>
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] bg-[var(--brand-black)] xl:block">{sidebar}</aside>
     {mobileOpen && <div className="fixed inset-0 z-50 xl:hidden">
       <button aria-label="Fechar navegação" className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)}/>
-      <aside className="relative h-full w-[270px] bg-[#171916] shadow-2xl">
+      <aside className="relative h-full w-[270px] bg-[var(--brand-black)] shadow-2xl">
         <button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white"><X size={20}/></button>
         {sidebar}
       </aside>

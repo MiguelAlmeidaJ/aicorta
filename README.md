@@ -236,3 +236,28 @@ pnpm --filter @aicorta/api build
 pnpm --filter @aicorta/web build
 pnpm dev
 ```
+
+## Identidade visual da plataforma (Branding 1.0)
+
+O manual `IDENTIDADE VISUAL AICORTA.pdf` define a paleta oficial: **#000000** preto, **#050A30** azul-marinho, **#F2C225** dourado e **#D9D9D9** cinza. O branco-gelo (#F6F7F4) permanece como fundo de interface.
+
+Acesse **`/system/configuracoes`** com a conta SYSTEM para:
+- Alterar o nome da marca e as quatro cores.
+- Enviar **logo principal**, **logo para fundo escuro** e **favicon**.
+- Ver a prévia de cada arquivo antes de salvar, substituir ou remover.
+- Aplicar alterações em todos os painéis, páginas públicas e ícone da aba do navegador.
+
+Formatos: PNG, JPG, WEBP ou ICO; **limite 400 KB por arquivo**. SVG não é aceito como upload para evitar scripts em imagens; o backend verifica assinatura de arquivo, além do MIME informado. Arquivos e configurações ficam em uma tabela singleton `PlatformBrand` no PostgreSQL, não em disco local. Em produção, planejar migração para storage de objetos/CDN caso o volume cresça.
+
+**Novas rotas**:
+- `GET /api/branding` — paleta e caminhos dos ativos (público).
+- `GET /api/branding/assets/:slot` — imagem (público; `logo`, `dark` ou `favicon`).
+- `PATCH /api/branding` — alterações de cores/nome (somente SYSTEM).
+- `PUT /api/branding/assets/:slot` — upload JSON `{"dataUrl":"data:image/png;base64,..."}` (somente SYSTEM).
+- `DELETE /api/branding/assets/:slot` — remove arquivo e restaura fallback (somente SYSTEM).
+
+O frontend utiliza `BrandProvider` com fallback quando a API está offline ou sem imagem. O favicon é atualizado dinamicamente no navegador. O SVG embutido é apenas uma identidade provisória até o envio dos logotipos oficiais.
+
+**Tipografia e licenças:** o manual apresenta Angel Band, Stanford Breath e Montserrat. Os ZIPs enviados com Angel Band e Stanford Breath são demos restritas ao **uso pessoal**, não comercial. **Não comitar nem distribuir esses arquivos de fontes**. A aplicação mantém fontes do sistema até que sejam fornecidos arquivos e licenças adequados.
+
+**Antes do primeiro uso:** execute `pnpm db:migrate` (nome sugerido: `platform_branding`) e `pnpm db:generate`. Execute `pnpm install` caso esteja atualizando a partir de outro patch. A migration adiciona apenas `PlatformBrand`, não altera usuários ou estabelecimentos existentes.

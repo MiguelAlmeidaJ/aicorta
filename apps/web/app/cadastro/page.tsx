@@ -1,4 +1,5 @@
 "use client";
+import { BrandLogo } from "../../components/brand/brand-provider";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -56,7 +57,7 @@ function InviteRegistration() {
   }
 
   return <main className="auth">
-    <Link href="/" className="brand">✂ AICorta</Link>
+    <Link href="/" className="brand"><BrandLogo className="h-12 max-w-[230px]"/></Link>
     <h1>Cadastrar barbearia</h1>
     {checking && <p>Validando seu convite...</p>}
     {!checking && !valid && <p>O cadastro de barbearias acontece somente por convite do administrador da plataforma.</p>}
