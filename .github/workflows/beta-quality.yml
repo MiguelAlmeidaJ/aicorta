@@ -1,0 +1,51 @@
+name: Beta quality gate
+
+on:
+  push:
+    branches: [beta]
+  pull_request:
+    branches: [beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aicorta_test
+          POSTGRES_USER: aicorta
+          POSTGRES_PASSWORD: aicorta_test_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aicorta -d aicorta_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://aicorta:aicorta_test_password@localhost:5432/aicorta_test?schema=public
+      TEST_DATABASE_URL: postgresql://aicorta:aicorta_test_password@localhost:5432/aicorta_test?schema=public
+      JWT_SECRET: ci-only-aicorta-secret-at-least-32-characters
+      WEB_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aicorta/api db:generate
+      - run: pnpm --filter @aicorta/api exec prisma migrate deploy
+      - run: pnpm --filter @aicorta/api test
+      - run: pnpm --filter @aicorta/api test:db
+      - run: pnpm --filter @aicorta/api test:e2e
+      - run: pnpm --filter @aicorta/api build
+      - run: pnpm --filter @aicorta/web typecheck
+      - run: pnpm --filter @aicorta/web build
