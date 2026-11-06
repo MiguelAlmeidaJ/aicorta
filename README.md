@@ -303,3 +303,31 @@ A tela `/system/configuracoes` foi redesenhada como um estúdio de marca, com pr
 O componente `BrandArtwork` corrige automaticamente **apenas na renderização** arquivos PNG exportados com margens transparentes ou fundo uniforme, removendo o espaço vazio para que as logos não fiquem minúsculas no menu. O original salvo em `PlatformBrand` não é alterado. Ajustes de layout e navegação da sidebar eliminam barra de rolagem permanente em telas comuns e melhoram a hierarquia visual de itens ativos.
 
 Não há alteração de banco nem novas dependências neste patch; execute `pnpm --filter @aicorta/web build` para validar o frontend.
+
+## Quality Gate 1.0 — testes HTTP e pipeline beta
+
+O workflow `.github/workflows/beta-quality.yml` executa `pnpm install --frozen-lockfile`, gera o Prisma Client, aplica todas as migrations em PostgreSQL 16 limpo e verifica unit tests, integração com SQL (inclusive exclusão GiST), HTTP E2E, build da API e typecheck/build Next.js. Cada comando falho reprova a CI; não usar um resultado verde como substituto de testes manuais do navegador.
+
+O teste `apps/api/test/http.integration.ts` cria dados isolados em `TEST_DATABASE_URL` (o nome do banco deve conter `test` ou `verify`), abre uma API Nest em porta aleatória e valida:
+- login SYSTEM, convite de proprietário e rejeição de reuso de token;
+- criação de dois tenants e restrições SYSTEM/ADMIN/CLIENT entre estabelecimentos;
+- configuração de horários/serviços, cadastro de clientes e listagem;
+- disputa de duas reservas HTTP no mesmo horário (um sucesso, um conflito);
+- confirmação, cancelamento e liberação do slot;
+- rotação de refresh token e recusa de reutilização.
+
+Rodar em banco de **teste**, nunca no banco de desenvolvimento ou produção:
+```bash
+pnpm --filter @aicorta/api db:generate
+pnpm --filter @aicorta/api exec prisma migrate deploy
+pnpm --filter @aicorta/api test:db
+pnpm --filter @aicorta/api test:e2e
+```
+
+## Demo UX 1.0 — agenda e jornada inicial
+
+A agenda interna agora apresenta modos **semana/dia**, filtros por status e profissional, seleção de data, indicadores do período, ações para confirmar/concluir/registrar ausência, carregamento e estados vazios. O endpoint `GET /api/tenants/:tenantId/appointments` aceita `from` e `to` em ISO UTC (ambos obrigatórios juntos, máximo 62 dias) e `take` até 300, mantendo resposta anterior se não houver filtros.
+
+O painel da barbearia mostra um **checklist do primeiro uso** somente para ADMIN enquanto faltar cadastro de serviços, horários gerais, jornadas ou serviços atribuídos. A página de reservas públicas foi redesenhada com escolha visual de serviços e profissionais, datas rápidas, resumo de reserva e mensagens claras de indisponibilidade.
+
+**Sem migrations ou dependências novas** neste patch. O faturamento continua ilustrando apenas atendimentos concluídos, não receita liquidada.

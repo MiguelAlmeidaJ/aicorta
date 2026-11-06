@@ -30,3 +30,9 @@
 - [x] Branding UI 1.1: prévias amplas, crop visual de margens nas logos e sidebar refinada
 - [ ] Licenciamento comercial das fontes especiais e CDN para ativos de marca
 - [ ] Política LGPD, auditoria, observabilidade e deploy
+
+## MVP Demo — verificação
+- [x] Patch 4: suíte HTTP E2E com PostgreSQL e gate CI em beta (execução obrigatória para aprovação)
+- [x] Patch 5: calendário semanal/diário, filtro por profissional e onboarding visual do ADMIN
+- [ ] Homologar execução real da CI, responsividade e fluxo completo em navegador
+- [ ] Testar reserva simultânea com múltiplas réplicas e monitorar erros operacionais

@@ -1,5 +1,6 @@
-import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Param, Post, Patch, Req, UseGuards } from "@nestjs/common";
-import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
+import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Param, Post, Patch, Query, Req, UseGuards } from "@nestjs/common";
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MaxLength } from "class-validator";
+import { Type } from "class-transformer";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
@@ -23,6 +24,11 @@ export class CreateAppointmentDto {
   @IsUUID() clientId!: string;
   @IsDateString() startsAt!: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+}
+export class AppointmentQueryDto {
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(300) take?: number;
 }
 export class FinishAppointmentDto {
   @IsIn(["COMPLETED", "NO_SHOW"]) status!: "COMPLETED" | "NO_SHOW";
@@ -50,13 +56,28 @@ export class BookingService {
     });
   }
 
-  async appointments(tenantId: string, userId: string) {
+  async appointments(tenantId: string, userId: string, query: AppointmentQueryDto = {}) {
     await this.assertTeamAccess(tenantId, userId);
+    if (Boolean(query.from) !== Boolean(query.to)) {
+      throw new BadRequestException("Informe from e to juntos");
+    }
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && (!(from < to) || to.getTime() - from.getTime() > 62 * 86_400_000)) {
+      throw new BadRequestException("O intervalo deve ter até 62 dias");
+    }
     return this.db.appointment.findMany({
-      where: { tenantId },
-      include: { service: { select: { name: true } }, client: { select: { name: true } } },
+      where: {
+        tenantId,
+        ...(from && to && { startsAt: { gte: from, lt: to } }),
+      },
+      include: {
+        service: { select: { name: true } },
+        client: { select: { name: true } },
+        employee: { select: { user: { select: { name: true } } } },
+      },
       orderBy: { startsAt: "asc" },
-      take: 100,
+      take: query.take ?? (from ? 300 : 100),
     });
   }
 
@@ -218,8 +239,9 @@ export class BookingController {
   constructor(private readonly booking: BookingService) {}
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Get("appointments")
-  appointments(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }) {
-    return this.booking.appointments(tenantId, req.user.id);
+  appointments(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } },
+    @Query() query: AppointmentQueryDto) {
+    return this.booking.appointments(tenantId, req.user.id, query);
   }
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Post("appointments")

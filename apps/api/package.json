@@ -13,7 +13,7 @@
     "db:studio": "prisma studio",
     "system:create": "tsx scripts/create-system.ts",
     "test": "tsx --test src/*.spec.ts",
-    "test:db": "tsc -p tsconfig.test.json --noEmit && tsx --test test/*.integration.ts",
+    "test:db": "tsc -p tsconfig.test.json --noEmit && tsx --test test/database.integration.ts",
     "test:e2e": "tsc -p tsconfig.test.json --noEmit && tsx --test test/http.integration.ts",
     "test:quality": "pnpm test && pnpm test:db && pnpm test:e2e"
   },

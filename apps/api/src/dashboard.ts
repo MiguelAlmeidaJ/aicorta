@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Injectable, Param, Patch, UseGuards,
+  Body, Controller, Get, Injectable, Param, Patch, Req, UseGuards,
 } from "@nestjs/common";
 import { IsIn } from "class-validator";
 import { PrismaService } from "./prisma.service";
@@ -52,7 +52,7 @@ export class DashboardService {
     });
   }
 
-  async barbershop(tenantId: string) {
+  async barbershop(tenantId: string, actorId: string) {
     const tenant = await this.db.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { id: true, name: true, slug: true, status: true,
@@ -67,7 +67,7 @@ export class DashboardService {
     const end = localToUtc(nextDay, 0, tenant.timezone) ?? new Date(nextDay + "T00:00:00Z");
     const monthStart = localToday.slice(0, 7) + "-01";
     const monthFrom = localToUtc(monthStart, 0, tenant.timezone) ?? new Date(monthStart + "T00:00:00Z");
-    const [appointmentsToday, pending, team, clients, services, revenue, upcoming] = await Promise.all([
+    const [appointmentsToday, pending, team, clients, services, revenue, upcoming, shopHours, staffHours, assignedServices] = await Promise.all([
       this.db.appointment.count({ where: { tenantId, startsAt: { gte: start, lt: end },
         status: { not: "CANCELLED" } } }),
       this.db.appointment.count({ where: { tenantId, status: "PENDING", startsAt: { gte: now } } }),
@@ -85,8 +85,17 @@ export class DashboardService {
           employee: { select: { user: { select: { name: true } } } },
         },
       }),
+      this.db.workWindow.count({ where: { tenantId, membershipId: null } }),
+      this.db.workWindow.count({ where: { tenantId, membershipId: { not: null } } }),
+      this.db.employeeService.count({ where: { membership: { tenantId, isActive: true } } }),
     ]);
-    return { tenant, appointmentsToday, pending, team, clients, services,
+    const actor = await this.db.membership.findUnique({
+      where: { userId_tenantId: { userId: actorId, tenantId } },
+      select: { role: true },
+    });
+    return { tenant, actorRole: actor?.role, appointmentsToday, pending, team, clients, services,
+      setup: { services: services > 0, shopHours: shopHours > 0,
+        professionalHours: staffHours > 0, assignedServices: assignedServices > 0 },
       completedRevenueCents: revenue._sum.priceCents ?? 0, upcoming };
   }
 }
@@ -111,5 +120,7 @@ export class DashboardController {
 
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Get("tenants/:tenantId/dashboard")
-  tenant(@Param("tenantId") tenantId: string) { return this.dashboards.barbershop(tenantId); }
+  tenant(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }) {
+    return this.dashboards.barbershop(tenantId, req.user.id);
+  }
 }
