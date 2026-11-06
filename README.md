@@ -105,3 +105,18 @@ WEB_ORIGIN="http://localhost:3000"
 4. A alteração revoga todas as sessões de refresh existentes e invalida JWTs de acesso anteriores.
 
 Limites de requisições em memória: padrão 60/minuto por IP, login 5/minuto, registro 3/minuto e recuperação 3/minuto. Para produção com várias instâncias, usar storage compartilhado e monitoramento de abuso. Atualize o schema antes dos testes: `pnpm db:migrate` e `pnpm db:generate`. A integração SMTP só funciona com credenciais reais.
+
+## Permissions 1.0 — escopo de estabelecimento
+
+Endpoints de gestão exigem JWT + vínculo ativo no tenant + estabelecimento ativo. O papel global SYSTEM **não** ignora autorização por estabelecimento.
+
+- `GET /api/tenants/:tenantId/services`: catálogo público, apenas serviços ativos.
+- `GET /api/tenants/:tenantId/services/manage`: todos os serviços, ADMIN.
+- `POST /api/tenants/:tenantId/services`: cadastra serviço, ADMIN.
+- `PATCH /api/tenants/:tenantId/services/:serviceId`: atualiza ou desativa serviço, ADMIN.
+- `GET /api/tenants/:tenantId/appointments`: agenda interna, ADMIN ou EMPLOYEE.
+- `POST /api/tenants/:tenantId/appointments`: agendamento interno, ADMIN ou EMPLOYEE.
+
+Dados de preço são inteiros em centavos (`priceCents`), duração em minutos (5 a 480). Desative serviços via `PATCH` com `{"isActive":false}` para manter histórico de agendamentos. Não há alteração de schema para este patch.
+
+**Atenção:** a criação de agendamentos ainda não implementa prevenção transacional de horários duplicados e não deve ser disponibilizada publicamente antes dessa validação.

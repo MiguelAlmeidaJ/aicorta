@@ -10,7 +10,9 @@
 - [x] Auth 1.1: rate limiting por IP e recuperação de senha por token de uso único via SMTP
 - [ ] Verificação de e-mail/WhatsApp, testes E2E integrados e gestão de dispositivos
 - [ ] Rate limiting compartilhado (Redis) para múltiplas réplicas e proteção adicional por identidade
-- [ ] Gestão de serviços, equipe, convites e clientes
+- [x] Permissions 1.0: guard tenant-scoped com papéis explícitos e CRUD inicial de serviços
+- [ ] Gestão de equipe, convites e clientes
+- [ ] Testes E2E de isolamento multi-tenant e motor anti-conflito de agenda
 - [ ] Agenda semanal, horários, folgas e bloqueio de concorrência
 - [ ] Agendamento público via slug, remarcação e cancelamento
 - [ ] Notificações WhatsApp/e-mail e fila de tarefas

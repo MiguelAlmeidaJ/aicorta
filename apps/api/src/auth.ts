@@ -148,7 +148,7 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwt.verifyAsync<{ sub: string; type: string; iat?: number }>(token);
       if (payload.type !== "access" || !payload.sub) throw new UnauthorizedException();
       const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id: true, isActive: true, passwordChangedAt: true } });
-      if (!user?.isActive || (user.passwordChangedAt && (!payload.iat || payload.iat * 1000 < user.passwordChangedAt.getTime()))) throw new UnauthorizedException();
+      if (!user?.isActive || (user.passwordChangedAt && (!payload.iat || (payload.iat + 1) * 1000 <= user.passwordChangedAt.getTime()))) throw new UnauthorizedException();
       request.user = { id: user.id };
       return true;
     } catch { throw new UnauthorizedException("Sessão inválida ou expirada"); }

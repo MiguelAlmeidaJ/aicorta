@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Injecta
 import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
+import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 
 export class CreateAppointmentDto {
   @IsUUID() serviceId!: string;
@@ -64,13 +65,12 @@ export class BookingService {
 @Controller("tenants/:tenantId")
 export class BookingController {
   constructor(private readonly booking: BookingService) {}
-  @Get("services") services(@Param("tenantId") tenantId: string) { return this.booking.services(tenantId); }
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Get("appointments")
   appointments(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }) {
     return this.booking.appointments(tenantId, req.user.id);
   }
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Post("appointments")
   create(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }, @Body() dto: CreateAppointmentDto) {
     return this.booking.create(tenantId, req.user.id, dto);
