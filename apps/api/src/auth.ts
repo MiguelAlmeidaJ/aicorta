@@ -3,7 +3,7 @@ import {
   BadRequestException, Get, Injectable, Post, Req, Res, UnauthorizedException, UseGuards,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { IsEmail, IsString, Matches, MinLength } from "class-validator";
+import { IsEmail, IsString, Matches, MinLength, MaxLength } from "class-validator";
 import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
 import { compare, hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
@@ -36,12 +36,12 @@ function clearCookies(res: Response) {
 
 export class RegisterDto {
   @IsString() @MinLength(2) name!: string;
-  @IsString() @Matches(/^[a-z0-9._-]{3,30}$/) username!: string;
+  @IsString() @Matches(/^[a-z0-9]{3,30}$/) username!: string;
   @IsEmail() email!: string;
   @IsString() whatsapp!: string;
   @IsString() @MinLength(10) password!: string;
   @IsString() @MinLength(2) businessName!: string;
-  @IsString() @Matches(/^[a-z0-9-]{3,50}$/) businessSlug!: string;
+  @IsString() @MinLength(32) @MaxLength(256) inviteToken!: string;
 }
 
 export class LoginDto {
@@ -70,14 +70,34 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const whatsapp = normalizeBrazilianWhatsapp(dto.whatsapp);
     if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
-    if (await this.db.user.findFirst({ where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true } })) throw new ConflictException("WhatsApp já cadastrado");
-    const slug = dto.businessSlug.trim().toLowerCase();
+    const tokenHash = digest(dto.inviteToken);
+    const passwordHash = await hash(dto.password, 12);
     try {
       const account = await this.db.$transaction(async tx => {
-        const user = await tx.user.create({
-          data: { name: dto.name.trim(), username, email, whatsapp, passwordHash: await hash(dto.password, 12) },
+        const invitation = await tx.ownerInvite.findUnique({ where: { tokenHash } });
+        if (!invitation || invitation.consumedAt || invitation.revokedAt || invitation.expiresAt <= new Date()) {
+          throw new BadRequestException("Convite inválido, expirado ou já utilizado");
+        }
+        if (await tx.user.findFirst({ where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true } })) {
+          throw new ConflictException("WhatsApp já cadastrado");
+        }
+        // Consumo atômico do token: rollback automático se houver falha no cadastro.
+        const consumed = await tx.ownerInvite.updateMany({
+          where: { id: invitation.id, consumedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+          data: { consumedAt: new Date() },
         });
-        const tenant = await tx.tenant.create({ data: { name: dto.businessName.trim(), slug, ownerId: user.id } });
+        if (consumed.count !== 1) throw new BadRequestException("Convite já utilizado");
+        const user = await tx.user.create({
+          data: { name: dto.name.trim(), username, email, whatsapp, passwordHash },
+        });
+        const tenant = await tx.tenant.create({
+          data: {
+            name: dto.businessName.trim(),
+            slug: "barbearia-" + randomBytes(8).toString("hex"),
+            ownerId: user.id,
+            billingDueDay: invitation.billingDueDay,
+          },
+        });
         await tx.membership.create({ data: { userId: user.id, tenantId: tenant.id, role: "ADMIN" } });
         return { user, tenant };
       });
@@ -85,7 +105,7 @@ export class AuthService {
       return { user: this.safeUser(account.user), tenant: { id: account.tenant.id, slug: account.tenant.slug } };
     } catch (error) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-        throw new ConflictException("Usuário, e-mail, WhatsApp ou slug já cadastrado");
+        throw new ConflictException("Usuário, e-mail ou WhatsApp já cadastrado");
       }
       throw error;
     }

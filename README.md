@@ -184,3 +184,21 @@ docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U aicorta -d aicorta < 
 **Atenção:** o SQL instala uma exclusão GiST para reservas PENDING e CONFIRMED, bloqueando sobreposições por tenant/profissional. Verifique e corrija conflitos preexistentes antes de executá-lo; falhará se já houver reservas sobrepostas. Não execute duas vezes sem remover/verificar a constraint. Isso ainda não está integrado às migrations versionadas do Prisma — na fase de deploy consolidaremos a migration após revisar o histórico local.
 
 Reservas iniciam como PENDING. Os horários são confirmados somente pelo estabelecimento; futuras integrações poderão notificar o cliente. A disponibilidade pode mudar entre consulta e confirmação e será revalidada no momento da gravação. Ainda faltam testes E2E com concorrência real, verificação do workflow completo em navegadores, política de cancelamento configurável e gateway de pagamentos.
+
+## Cadastro de barbearias por convite SYSTEM (Onboarding 1.0)
+
+A criação de barbearias deixa de ser aberta. O operador SYSTEM entra em `/system/convites`, informa **nome de referência do destinatário** e **dia mensal de vencimento** (1 a 31), gera um link de uso único e o envia manualmente ao futuro proprietário. O nome de referência não é o nome de usuário nem o nome da barbearia; é usado no histórico administrativo.
+
+- `POST /api/auth/owner-invites` (SYSTEM): `{"referenceName":"João Miguel","billingDueDay":10}`.
+- `GET /api/auth/owner-invites` (SYSTEM): histórico sem tokens.
+- `PATCH /api/auth/owner-invites/:id/revoke` (SYSTEM): revogação antes do uso.
+- `GET /api/auth/owner-invites/verify?token=...`: validação pública do token.
+- `POST /api/auth/register`: exige `inviteToken`; consumo atômico em transação com criação de usuário ADMIN e tenant. Cadastros sem convite são recusados também na API.
+
+O link expira em sete dias, só pode ser usado uma vez e contém segredo gerado aleatoriamente; somente o hash SHA-256 é salvo. O sistema exibe o link uma única vez ao emissor. Não existe envio automático nesse patch.
+
+**Validação:** username novo somente `[a-z0-9]` (3–30 caracteres), sem espaços, acentos ou pontuação. O WhatsApp é exibido com máscara `(DD) 9XXXX-XXXX`, mas persistido como 11 dígitos brasileiros. O endereço curto/slug não é solicitado no cadastro: é gerado temporariamente e depois pode ser editado pelo ADMIN em `/painel/barbearias/:tenantId/configuracoes` (API `GET/PATCH /api/tenants/:tenantId/settings`).
+
+**Financeiro:** `Tenant.billingDueDay` é preenchido pelo SYSTEM e não pode ser alterado pelo proprietário nessa tela. Não existem cobranças ou suspensões automáticas ainda. Para vencimentos 29–31 em meses curtos, a política prevista é usar o último dia do mês.
+
+**Migração obrigatória:** `pnpm db:migrate` (nome sugerido: `owner_invites`) e `pnpm db:generate`. Tenants existentes recebem `billingDueDay=10` como valor provisório até configuração financeira. Não execute novamente o bootstrap SYSTEM.

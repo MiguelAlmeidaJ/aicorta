@@ -6,7 +6,7 @@ export default function HomePage() {
       <span className="eyebrow">A agenda da sua barbearia, em um só lugar</span>
       <h1>Menos tempo organizando. <em>Mais tempo cortando.</em></h1>
       <p>Agendamentos, equipe, serviços e clientes, com cada barbearia no seu próprio espaço.</p>
-      <div className="actions"><Link className="button" href="/cadastro">Cadastrar barbearia</Link><Link className="ghost" href="/login">Já tenho conta</Link></div>
+      <div className="actions"><Link className="button" href="/login">Acessar minha conta</Link><span className="ghost">Cadastro de barbearias somente por convite.</span></div>
     </section>
     <footer>© AICorta · Base beta</footer>
   </main>;

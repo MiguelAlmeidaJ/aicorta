@@ -5,6 +5,8 @@
 - [x] Cadastro de estabelecimento e autenticação por 3 identificadores (API)
 - [x] Endpoint de catálogo e endpoints internos iniciais de agenda
 - [ ] Migration versionada, CI e testes com banco
+- [x] Onboarding 1.0: convite SYSTEM de uso único, dia de vencimento e configuração de slug pelo ADMIN
+- [ ] Entrega automática do convite, dashboard financeiro e regras de suspensão por inadimplência
 - [x] Cookies HttpOnly, refresh rotativo, logout e painel de sessão inicial
 - [x] Bootstrap operacional de usuário SYSTEM por script de ambiente
 - [x] Auth 1.1: rate limiting por IP e recuperação de senha por token de uso único via SMTP
