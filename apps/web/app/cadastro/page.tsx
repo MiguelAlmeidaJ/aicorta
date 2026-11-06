@@ -19,7 +19,7 @@ export default function RegisterPage() {
     <label>Nome completo<input name="name" required minLength={2} /></label>
     <label>Usuário<input name="username" required pattern="[a-z0-9._-]{3,30}" placeholder="miguel" /></label>
     <label>E-mail<input name="email" type="email" required /></label>
-    <label>WhatsApp (E.164)<input name="whatsapp" required placeholder="+5532999999999" /></label>
+    <label>WhatsApp (DDD + celular)<input name="whatsapp" required placeholder="32999999999" inputMode="tel" /></label>
     <label>Senha<input name="password" type="password" required minLength={10} /></label>
     <label>Nome da barbearia<input name="businessName" required minLength={2} /></label>
     <label>Endereço curto (slug)<input name="businessSlug" required pattern="[a-z0-9-]{3,50}" placeholder="barbearia-do-centro" /></label>

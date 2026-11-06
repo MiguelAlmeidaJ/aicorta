@@ -8,7 +8,7 @@ Toda query de dados de negócio precisa restringir `tenantId` e verificar autori
 
 Identidade:
 - username e email normalizados para minúsculas.
-- WhatsApp deve ser normalizado para E.164 (+55...) e único.
+- WhatsApp é normalizado para DDD + celular (11 dígitos, sem +55) e único. Entradas com 55 ou +55 são aceitas; o login também reconhece registros E.164 legados.
 - Hash bcrypt com custo 12; nunca armazenar senha em claro.
 - A API de cadastro cria ADMIN e Tenant na mesma transação.
 

@@ -1,9 +1,10 @@
 import {
   Body, CanActivate, ConflictException, Controller, ExecutionContext, ForbiddenException,
-  Get, Injectable, Post, Req, Res, UnauthorizedException, UseGuards,
+  BadRequestException, Get, Injectable, Post, Req, Res, UnauthorizedException, UseGuards,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { IsEmail, IsString, Matches, MinLength } from "class-validator";
+import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
 import { compare, hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response, CookieOptions } from "express";
@@ -36,7 +37,7 @@ export class RegisterDto {
   @IsString() @MinLength(2) name!: string;
   @IsString() @Matches(/^[a-z0-9._-]{3,30}$/) username!: string;
   @IsEmail() email!: string;
-  @IsString() @Matches(/^\+[1-9]\d{7,14}$/) whatsapp!: string;
+  @IsString() whatsapp!: string;
   @IsString() @MinLength(10) password!: string;
   @IsString() @MinLength(2) businessName!: string;
   @IsString() @Matches(/^[a-z0-9-]{3,50}$/) businessSlug!: string;
@@ -66,7 +67,9 @@ export class AuthService {
   async register(dto: RegisterDto, res: Response) {
     const username = dto.username.trim().toLowerCase();
     const email = dto.email.trim().toLowerCase();
-    const whatsapp = dto.whatsapp.trim();
+    const whatsapp = normalizeBrazilianWhatsapp(dto.whatsapp);
+    if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
+    if (await this.db.user.findFirst({ where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true } })) throw new ConflictException("WhatsApp já cadastrado");
     const slug = dto.businessSlug.trim().toLowerCase();
     try {
       const account = await this.db.$transaction(async tx => {
@@ -89,8 +92,9 @@ export class AuthService {
 
   async login(dto: LoginDto, res: Response) {
     const identifier = dto.identifier.trim().toLowerCase();
+    const phone = normalizeBrazilianWhatsapp(dto.identifier);
     const user = await this.db.user.findFirst({
-      where: { OR: [{ username: identifier }, { email: identifier }, { whatsapp: dto.identifier.trim() }] },
+      where: { OR: [{ username: identifier }, { email: identifier }, ...(phone ? [{ whatsapp: { in: whatsappVariants(phone) } }] : [])] },
     });
     if (!user || !user.isActive || !(await compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException("Credenciais inválidas");

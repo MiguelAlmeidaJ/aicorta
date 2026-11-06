@@ -78,10 +78,10 @@ Exemplo de variáveis (não copie valores reais para o Git):
 SYSTEM_NAME="Administrador da plataforma"
 SYSTEM_USERNAME="operador"
 SYSTEM_EMAIL="operador@example.com"
-SYSTEM_WHATSAPP="+5532999999999"
+SYSTEM_WHATSAPP="32999999999"
 SYSTEM_PASSWORD="substitua-por-uma-senha-forte-de-uso-unico"
 ```
 
-A senha precisa ter **16+ caracteres**. O script interrompe se qualquer identificador já pertencer a outro usuário; **nunca promove** contas existentes. Reexecutar com a mesma identidade SYSTEM não altera a senha e não cria duplicados. O papel SYSTEM é global, sem bypass automático das permissões de cada tenant.
+WhatsApp é salvo como DDD + celular (11 dígitos, sem +55); entradas com +55 e 55 são aceitas e normalizadas. A senha precisa ter **16+ caracteres**. O script interrompe se qualquer identificador já pertencer a outro usuário; **nunca promove** contas existentes. Reexecutar com a mesma identidade SYSTEM não altera a senha e não cria duplicados. O papel SYSTEM é global, sem bypass automático das permissões de cada tenant.
 
 **Antes de produção:** rate limit anti brute-force, verificação de e-mail/WhatsApp, recuperação de senha, proteção de CSRF reforçada para domínios não confiáveis, revogação de todas as sessões em troca de senha, testes E2E e monitoramento. Crie e versione uma migration após atualizar o schema Prisma.
