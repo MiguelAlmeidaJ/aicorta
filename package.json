@@ -1,0 +1,18 @@
+{
+  "name": "aicorta",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @aicorta/api db:generate",
+    "db:migrate": "pnpm --filter @aicorta/api db:migrate",
+    "db:studio": "pnpm --filter @aicorta/api db:studio"
+  }
+}
