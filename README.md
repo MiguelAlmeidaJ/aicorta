@@ -140,3 +140,21 @@ Token aleatório de uso único, válido por **7 dias**; somente seu SHA-256 é s
 A criação de agendamentos internos agora exige que o cliente tenha vínculo CLIENT ativo com a barbearia. Histórico não é excluído ao desativar vínculos.
 
 **Migration obrigatória:** `pnpm db:migrate` (nome sugerido: `people_invitations`), depois `pnpm db:generate`. Nenhuma conta SYSTEM ou membership existente deve ser recriado.
+
+## Agenda 1.0
+
+Horários semanais são registrados como dia da semana (0=domingo a 6=sábado), minuto de início e fim desde 00:00. Exemplo segunda-feira de 09:00 a 12:00: `{"weekday":1,"startMinute":540,"endMinute":720}`. O expediente da barbearia e o do profissional devem conter **ambos** o serviço; sem configuração, não há horários. Turnos atravessando a meia-noite ficam para outro patch. Fuso horário é obtido do Tenant (IANA, padrão America/Sao_Paulo). Datas de agendamento persistem em UTC.
+
+Rotas (prefixo `/api/tenants/:tenantId/agenda`):
+- `GET /hours` e `PUT /hours`: expediente semanal da barbearia, ADMIN.
+- `GET /professionals/:memberId/hours` e `PUT /professionals/:memberId/hours`: jornada semanal, ADMIN.
+- `GET /professionals/:memberId/services` e `PUT /professionals/:memberId/services`: serviços habilitados, ADMIN.
+- `POST /time-off`: intervalos de folga em UTC, ADMIN.
+- `GET /professionals/:memberId/time-off`: ADMIN ou próprio funcionário.
+- `GET /availability?serviceId=...&membershipId=...&date=AAAA-MM-DD`: horários disponíveis, ADMIN ou EMPLOYEE.
+
+`PUT /hours` recebe `{"windows":[{"weekday":1,"startMinute":540,"endMinute":1080}]}` e substitui a grade inteira, validando sobreposição. `PUT /professionals/:memberId/services` recebe `{"serviceIds":["uuid"]}`. `POST /time-off` recebe `{"membershipId":"uuid","startsAt":"2026-12-01T12:00:00Z","endsAt":"2026-12-01T15:00:00Z"}`.
+
+A rota de criação de agendamentos internos usa **pg_advisory_xact_lock** por tenant+profissional e confere expediente, folga, serviço e conflito sob o mesmo lock, inclusive entre réplicas da API. Todos os agendamentos que escrevem no banco devem usar o mesmo protocolo transacional; escritas diretas no banco não são protegidas pelo lock. Uma exclusion constraint de PostgreSQL e testes E2E de concorrência são necessários antes de agendamento público.
+
+Aplicar migration local: `pnpm db:migrate` (nome: `agenda_1_0`), depois `pnpm db:generate`. Não altera registros SYSTEM existentes.

@@ -13,9 +13,11 @@
 - [x] Permissions 1.0: guard tenant-scoped com papéis explícitos e CRUD inicial de serviços
 - [x] People 1.0: convites de funcionários/clientes existentes, aceite autenticado e listagens por tenant
 - [ ] Onboarding de convidados sem conta, entrega automática de convites e UI de gestão
-- [ ] Associação de serviços a profissionais e reativação controlada de vínculos
+- [x] Associação de serviços a profissionais
+- [ ] Reativação controlada de vínculos
 - [ ] Testes E2E de isolamento multi-tenant e motor anti-conflito de agenda
-- [ ] Agenda semanal, horários, folgas e bloqueio de concorrência
+- [x] Agenda 1.0: horários da loja/profissionais, folgas, disponibilidade e bloqueio transacional por profissional
+- [ ] Exclusion constraint no PostgreSQL, testes E2E com concorrência real e UI da agenda
 - [ ] Agendamento público via slug, remarcação e cancelamento
 - [ ] Notificações WhatsApp/e-mail e fila de tarefas
 - [ ] Pagamentos, assinaturas SaaS e relatórios

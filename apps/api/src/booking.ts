@@ -1,8 +1,10 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Injectable, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
+import { AgendaService } from "./agenda";
+import { inside, localParts, overlaps, weekday } from "./scheduling-time";
 
 export class CreateAppointmentDto {
   @IsUUID() serviceId!: string;
@@ -14,7 +16,7 @@ export class CreateAppointmentDto {
 
 @Injectable()
 export class BookingService {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: PrismaService, private readonly agenda: AgendaService) {}
 
   async assertTeamAccess(tenantId: string, userId: string) {
     const membership = await this.db.membership.findUnique({
@@ -55,9 +57,35 @@ export class BookingService {
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime()) || startsAt <= new Date()) throw new BadRequestException("Data deve estar no futuro");
     const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
-    // TODO: criar bloqueio anti-concorrência no PostgreSQL antes de liberar o agendamento público.
-    return this.db.appointment.create({
-      data: { tenantId, serviceId: service.id, employeeMembershipId: employee.id, clientId: client.id, startsAt, endsAt, priceCents: service.priceCents, notes: dto.notes },
+    const tenant = await this.agenda.tenant(tenantId);
+    const local = localParts(startsAt, tenant.timezone);
+    const endLocal = localParts(endsAt, tenant.timezone);
+    if (local.date !== endLocal.date || endLocal.minute !== local.minute + service.durationMinutes ||
+        local.minute % 15 !== 0) throw new BadRequestException("Horário fora da grade de 15 minutos");
+    return this.db.$transaction(async tx => {
+      // PostgreSQL transaction-scoped lock is shared between all API replicas using the same DB.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":" + employee.id}, 0))::text`;
+      const day = weekday(local.date);
+      const [shop, staff, off, busy, assigned] = await Promise.all([
+        tx.workWindow.findMany({ where: { tenantId, membershipId: null, weekday: day } }),
+        tx.workWindow.findMany({ where: { tenantId, membershipId: employee.id, weekday: day } }),
+        tx.timeOff.findFirst({ where: { tenantId, membershipId: employee.id, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }),
+        tx.appointment.findFirst({ where: { tenantId, employeeMembershipId: employee.id, status: { in: ["PENDING", "CONFIRMED"] },
+          startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }),
+        tx.employeeService.findUnique({ where: { membershipId_serviceId: { membershipId: employee.id, serviceId: service.id } } }),
+      ]);
+      if (!inside(shop, local.minute, endLocal.minute) || !inside(staff, local.minute, endLocal.minute) || !assigned) {
+        throw new BadRequestException("Profissional indisponível para este serviço e horário");
+      }
+      if (off || busy) throw new ConflictException("Horário já ocupado ou bloqueado");
+      // Revalidate membership and service after lock, within the same transaction.
+      const current = await tx.membership.findFirst({ where: { id: employee.id, tenantId, isActive: true,
+        role: { in: ["ADMIN", "EMPLOYEE"] } } });
+      const activeService = await tx.service.findFirst({ where: { id: service.id, tenantId, isActive: true } });
+      if (!current || !activeService) throw new BadRequestException("Profissional ou serviço inativo");
+      return tx.appointment.create({ data: { tenantId, serviceId: service.id,
+        employeeMembershipId: employee.id, clientId: client.id, startsAt, endsAt,
+        priceCents: service.priceCents, notes: dto.notes } });
     });
   }
 }
