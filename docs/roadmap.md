@@ -27,5 +27,6 @@
 - [ ] Relatórios financeiros, paginação da agenda e melhorias de gestão de equipe
 - [ ] Pagamentos, assinaturas SaaS e relatórios
 - [x] Branding 1.0: identidade do manual oficial e configurações de logo/favicon/cores por SYSTEM
+- [x] Branding UI 1.1: prévias amplas, crop visual de margens nas logos e sidebar refinada
 - [ ] Licenciamento comercial das fontes especiais e CDN para ativos de marca
 - [ ] Política LGPD, auditoria, observabilidade e deploy

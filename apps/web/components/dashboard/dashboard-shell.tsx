@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  ArrowRightLeft, BadgeCheck, Bell, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
+  ArrowRightLeft, BadgeCheck, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
   ExternalLink, LayoutDashboard, LogOut, Menu, Scissors, Settings2, ShieldCheck,
   UsersRound, UserRoundPlus, X, type LucideIcon,
 } from "lucide-react";
@@ -88,24 +88,25 @@ export function DashboardShell({ children, mode, tenantId }: {
     {items.map(item => {
       const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
       return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
-        className={`group flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-medium transition
-          ${active ? "bg-[#f8f9f6] text-[#121310] shadow-[0_1px_12px_#0000000d]"
-          : "text-[#999d96] hover:bg-[#252724] hover:text-[#f5f6f2]"}`}>
-        <item.icon size={18} strokeWidth={active ? 2.15 : 1.75}/>
+        className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-medium transition
+          ${active ? "bg-[#24241e] text-[#f6f5ef] ring-1 ring-[#f2c225]/20"
+          : "text-[#999d96] hover:bg-white/[.055] hover:text-[#f5f6f2]"}`}>
+        {active && <span className="absolute inset-y-3 left-0 w-[3px] rounded-full bg-[var(--brand-gold)]"/>}
+        <item.icon size={18} strokeWidth={active ? 2.15 : 1.75} className={active ? "text-[var(--brand-gold)]" : ""}/>
         <span className="flex-1">{item.title}</span>
         {active && <ChevronRight size={14} className="opacity-60"/>}
       </Link>;
     })}
   </nav>;
 
-  const sidebar = <div className="flex h-full flex-col">
-    <Link href="/painel" className="flex min-h-[104px] items-center px-3 py-5">
-      <BrandLogo dark className="h-[58px] w-full"/>
+  const sidebar = <div className="flex h-full min-h-0 flex-col">
+    <Link href="/painel" className="group flex min-h-[105px] shrink-0 items-center border-b border-white/[.08] px-6 py-5">
+      <BrandLogo dark className="h-[70px] w-[204px] origin-left transition group-hover:opacity-90"/>
     </Link>
-    <div className="mt-8 px-3">
-      <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Workspace</p>
+    <div className="mt-6 shrink-0 px-4">
+      <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#76766f]">Workspace</p>
       <button type="button" onClick={() => setShowSwitch(v => !v)}
-        className="flex w-full items-center gap-3 rounded-xl border border-[#333630] bg-[#222420] p-3 text-left transition hover:border-[#4d514a]">
+        className="flex w-full items-center gap-3 rounded-xl border border-white/[.09] bg-[#191a18] p-3.5 text-left transition hover:border-[#6d603c]">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#3b3e38] text-[#f5f6f2]">
           {mode === "system" ? <ShieldCheck size={19}/> : <Scissors size={19}/>}
         </span>
@@ -123,24 +124,24 @@ export function DashboardShell({ children, mode, tenantId }: {
           </Link>)}
       </div>}
     </div>
-    <div className="mt-10 flex-1 overflow-y-auto px-3">
+    <div className="mt-7 min-h-0 flex-1 overflow-y-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Menu principal</p>
       {links}
-      <p className="mb-3 mt-10 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Acesso rápido</p>
+      <p className="mb-3 mt-8 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Acesso rápido</p>
       <Link href={mode === "system" ? "/system/convites" : `/b/${membership?.tenant.slug}`}
         className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] text-[#999d96] transition hover:bg-[#252724] hover:text-white">
         {mode === "system" ? <UserRoundPlus size={18}/> : <ExternalLink size={18}/>}
         {mode === "system" ? "Novo convite" : "Página pública"}
       </Link>
     </div>
-    <div className="border-t border-[#31342f] p-4">
-      <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#161616] p-3">
+    <div className="shrink-0 border-t border-white/[.08] p-4">
+      <div className="mb-2 flex items-center gap-3 rounded-xl bg-white/[.045] p-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-gold)] text-xs font-bold text-[#161715]">{profileInitials}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-semibold text-white">{profile.name}</span>
           <span className="block truncate text-[11px] text-[#969c93]">@{profile.username}</span>
         </span>
-        <BadgeCheck size={16} className="text-[#a3a99f]"/>
+        <BadgeCheck size={16} className="text-[var(--brand-gold)]"/>
       </div>
       <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-[#afb4ab] transition hover:bg-[#2b2d29] hover:text-white">
         <LogOut size={17}/> Encerrar sessão
@@ -149,16 +150,16 @@ export function DashboardShell({ children, mode, tenantId }: {
   </div>;
 
   return <div className="min-h-screen bg-[#f6f7f4] text-[#161815]">
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] bg-[var(--brand-black)] xl:block">{sidebar}</aside>
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] bg-[#0b0c0a] xl:block">{sidebar}</aside>
     {mobileOpen && <div className="fixed inset-0 z-50 xl:hidden">
       <button aria-label="Fechar navegação" className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)}/>
-      <aside className="relative h-full w-[270px] bg-[var(--brand-black)] shadow-2xl">
+      <aside className="relative h-full w-[270px] bg-[#0b0c0a] shadow-2xl">
         <button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white"><X size={20}/></button>
         {sidebar}
       </aside>
     </div>}
     <div className="min-h-screen xl:pl-[264px]">
-      <header className="sticky top-0 z-20 flex h-[78px] items-center justify-between border-b border-[#e9ebe5] bg-[#f6f7f4]/95 px-5 backdrop-blur-lg sm:px-8 lg:px-12">
+      <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#ecece7] bg-[#f8f8f5]/95 px-5 backdrop-blur-lg sm:px-8 lg:px-12">
         <div className="flex items-center gap-4">
           <button aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-xl border border-[#e2e4de] bg-white p-2.5 xl:hidden"><Menu size={20}/></button>
           <div className="hidden items-center gap-2 text-xs text-[#9a9e96] sm:flex">
@@ -175,8 +176,8 @@ export function DashboardShell({ children, mode, tenantId }: {
           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e4e6df] bg-white text-xs font-bold">{profileInitials}</span>
         </div>
       </header>
-      <main className="mx-auto max-w-[1560px] px-5 py-8 sm:px-8 lg:px-12 lg:py-11">{children}</main>
-      <footer className="mx-auto max-w-[1560px] px-5 pb-8 text-[11px] text-[#a2a69f] sm:px-8 lg:px-12">© AICorta · Painel administrativo</footer>
+      <main className="mx-auto max-w-[1560px] px-5 py-7 sm:px-8 lg:px-10 lg:py-9">{children}</main>
+      <footer className="mx-auto max-w-[1560px] px-5 pb-8 text-[11px] text-[#a2a69f] sm:px-8 lg:px-10">© AICorta · Painel administrativo</footer>
     </div>
   </div>;
 }

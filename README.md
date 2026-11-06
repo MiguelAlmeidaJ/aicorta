@@ -261,3 +261,11 @@ O frontend utiliza `BrandProvider` com fallback quando a API está offline ou se
 **Tipografia e licenças:** o manual apresenta Angel Band, Stanford Breath e Montserrat. Os ZIPs enviados com Angel Band e Stanford Breath são demos restritas ao **uso pessoal**, não comercial. **Não comitar nem distribuir esses arquivos de fontes**. A aplicação mantém fontes do sistema até que sejam fornecidos arquivos e licenças adequados.
 
 **Antes do primeiro uso:** execute `pnpm db:migrate` (nome sugerido: `platform_branding`) e `pnpm db:generate`. Execute `pnpm install` caso esteja atualizando a partir de outro patch. A migration adiciona apenas `PlatformBrand`, não altera usuários ou estabelecimentos existentes.
+
+## Branding UI 1.1 — refinamento visual
+
+A tela `/system/configuracoes` foi redesenhada como um estúdio de marca, com prévia alternável entre fundos claro e escuro, logos grandes e cards dedicados à publicação individual de cada imagem. Paleta editável em amostras, favicon em contexto e feedback de publicação fazem parte da nova experiência.
+
+O componente `BrandArtwork` corrige automaticamente **apenas na renderização** arquivos PNG exportados com margens transparentes ou fundo uniforme, removendo o espaço vazio para que as logos não fiquem minúsculas no menu. O original salvo em `PlatformBrand` não é alterado. Ajustes de layout e navegação da sidebar eliminam barra de rolagem permanente em telas comuns e melhoram a hierarquia visual de itens ativos.
+
+Não há alteração de banco nem novas dependências neste patch; execute `pnpm --filter @aicorta/web build` para validar o frontend.
