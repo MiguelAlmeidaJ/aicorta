@@ -42,6 +42,7 @@ model User {
   globalRole   GlobalRole  @default(USER)
   isActive     Boolean     @default(true)
   sessions     AuthSession[]
+  issuedInvitations TenantInvitation[] @relation("InvitationIssuer")
   passwordResets PasswordReset[]
   passwordChangedAt DateTime?
   memberships  Membership[]
@@ -60,6 +61,7 @@ model Tenant {
   ownerId      String       @db.Uuid
   owner        User         @relation("TenantOwner", fields: [ownerId], references: [id])
   memberships  Membership[]
+  invitations  TenantInvitation[]
   services     Service[]
   appointments Appointment[]
   createdAt    DateTime     @default(now())
@@ -156,4 +158,22 @@ model PasswordReset {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
+}
+
+model TenantInvitation {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenantId    String      @db.Uuid
+  issuedById  String      @db.Uuid
+  email       String
+  role        TenantRole
+  tokenHash   String      @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  issuedBy    User        @relation("InvitationIssuer", fields: [issuedById], references: [id])
+
+  @@index([tenantId, email])
+  @@index([expiresAt])
 }

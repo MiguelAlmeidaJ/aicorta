@@ -11,7 +11,9 @@
 - [ ] Verificação de e-mail/WhatsApp, testes E2E integrados e gestão de dispositivos
 - [ ] Rate limiting compartilhado (Redis) para múltiplas réplicas e proteção adicional por identidade
 - [x] Permissions 1.0: guard tenant-scoped com papéis explícitos e CRUD inicial de serviços
-- [ ] Gestão de equipe, convites e clientes
+- [x] People 1.0: convites de funcionários/clientes existentes, aceite autenticado e listagens por tenant
+- [ ] Onboarding de convidados sem conta, entrega automática de convites e UI de gestão
+- [ ] Associação de serviços a profissionais e reativação controlada de vínculos
 - [ ] Testes E2E de isolamento multi-tenant e motor anti-conflito de agenda
 - [ ] Agenda semanal, horários, folgas e bloqueio de concorrência
 - [ ] Agendamento público via slug, remarcação e cancelamento

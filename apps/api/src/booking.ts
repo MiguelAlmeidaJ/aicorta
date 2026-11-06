@@ -49,7 +49,7 @@ export class BookingService {
     const [service, employee, client] = await Promise.all([
       this.db.service.findFirst({ where: { id: dto.serviceId, tenantId, isActive: true } }),
       this.db.membership.findFirst({ where: { id: dto.employeeMembershipId, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } } }),
-      this.db.user.findFirst({ where: { id: dto.clientId, isActive: true } }),
+      this.db.user.findFirst({ where: { id: dto.clientId, isActive: true, memberships: { some: { tenantId, role: "CLIENT", isActive: true } } } }),
     ]);
     if (!service || !employee || !client) throw new BadRequestException("Serviço, profissional ou cliente inválido");
     const startsAt = new Date(dto.startsAt);

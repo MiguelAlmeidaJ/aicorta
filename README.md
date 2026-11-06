@@ -120,3 +120,23 @@ Endpoints de gestão exigem JWT + vínculo ativo no tenant + estabelecimento ati
 Dados de preço são inteiros em centavos (`priceCents`), duração em minutos (5 a 480). Desative serviços via `PATCH` com `{"isActive":false}` para manter histórico de agendamentos. Não há alteração de schema para este patch.
 
 **Atenção:** a criação de agendamentos ainda não implementa prevenção transacional de horários duplicados e não deve ser disponibilizada publicamente antes dessa validação.
+
+## People 1.0 — funcionários, clientes e convites
+
+Os convites exigem **conta ativa já existente**. Para preservar a privacidade, não existe cadastro automático de terceiros e não há associação sem aceite do convidado. Não é permitido convidar `SYSTEM`. Cada identidade global possui no máximo um vínculo por tenant; promoção ou troca de papel não acontece implicitamente.
+
+Rotas (todas com prefixo `/api`):
+- `GET /tenants/:tenantId/employees`: ADMIN, lista colaboradores.
+- `GET /tenants/:tenantId/clients`: ADMIN e EMPLOYEE, lista clientes vinculados.
+- `POST /tenants/:tenantId/invitations`: ADMIN, corpo `{"email":"pessoa@example.com","role":"EMPLOYEE"}` (ou CLIENT).
+- `GET /tenants/:tenantId/invitations`: ADMIN, lista convites sem revelar tokens.
+- `PATCH /tenants/:tenantId/invitations/:invitationId/revoke`: ADMIN, revoga convite pendente.
+- `POST /invitations/accept`: usuário autenticado, corpo `{"token":"..."}`; e-mail deve coincidir.
+- `PATCH /tenants/:tenantId/employees/:membershipId/deactivate`: ADMIN.
+- `PATCH /tenants/:tenantId/clients/:membershipId/deactivate`: ADMIN.
+
+Token aleatório de uso único, válido por **7 dias**; somente seu SHA-256 é salvo. A API o devolve ao administrador **uma vez** durante a criação, para envio manual seguro. Compartilhe somente com a pessoa convidada: um token exposto pode ser usado por qualquer sessão autenticada com o e-mail correspondente. A entrega SMTP automática e a interface web de convites são próximas etapas.
+
+A criação de agendamentos internos agora exige que o cliente tenha vínculo CLIENT ativo com a barbearia. Histórico não é excluído ao desativar vínculos.
+
+**Migration obrigatória:** `pnpm db:migrate` (nome sugerido: `people_invitations`), depois `pnpm db:generate`. Nenhuma conta SYSTEM ou membership existente deve ser recriado.

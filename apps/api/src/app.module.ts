@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PeopleController, PeopleService } from "./people";
 import { TenantRoleGuard } from "./tenant-role.guard";
 import { ServiceCatalogController, ServiceCatalogService } from "./services";
 import { APP_GUARD } from "@nestjs/core";
@@ -21,7 +22,7 @@ import { BookingController, BookingService } from "./booking";
       signOptions: { expiresIn: "15m" },
     }),
   ],
-  controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceCatalogController],
-  providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BookingService, TenantRoleGuard, ServiceCatalogService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceCatalogController, PeopleController],
+  providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BookingService, TenantRoleGuard, ServiceCatalogService, PeopleService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
