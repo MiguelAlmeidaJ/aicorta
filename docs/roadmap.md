@@ -23,5 +23,7 @@
 - [x] Booking 1.0: catálogo e horários por slug, reserva autenticada, cancelamento e remarcação
 - [ ] Testes E2E de concorrência com PostgreSQL real, migração SQL de exclusão validada e monitoramento
 - [ ] Notificações WhatsApp/e-mail e fila de tarefas
+- [x] Dashboard SYSTEM 1.0 e painel da barbearia com sidebar responsiva, Tailwind v4 e dados reais
+- [ ] Relatórios financeiros, paginação da agenda e melhorias de gestão de equipe
 - [ ] Pagamentos, assinaturas SaaS e relatórios
 - [ ] Política LGPD, auditoria, observabilidade e deploy

@@ -202,3 +202,37 @@ O link expira em sete dias, só pode ser usado uma vez e contém segredo gerado 
 **Financeiro:** `Tenant.billingDueDay` é preenchido pelo SYSTEM e não pode ser alterado pelo proprietário nessa tela. Não existem cobranças ou suspensões automáticas ainda. Para vencimentos 29–31 em meses curtos, a política prevista é usar o último dia do mês.
 
 **Migração obrigatória:** `pnpm db:migrate` (nome sugerido: `owner_invites`) e `pnpm db:generate`. Tenants existentes recebem `billingDueDay=10` como valor provisório até configuração financeira. Não execute novamente o bootstrap SYSTEM.
+
+## Dashboards 1.0 — design system preto e branco-gelo
+
+Frontend migrado para **Tailwind CSS v4** com PostCSS e ícones Lucide. O layout dos painéis utiliza sidebar escura, conteúdo branco-gelo, navegação responsiva e um único shell reutilizável. Os dados são consultados diretamente na API autenticada, com cookies HttpOnly e refresh de sessão; números fictícios não são utilizados.
+
+**Painel SYSTEM**
+- `/system` — métricas globais reais: barbearias, acessos suspensos, usuários e convites em aberto.
+- `/system/barbearias` — busca, filtro por status e suspensão/reativação manual de acesso.
+- `/system/convites` — emissão e acompanhamento de convites de uso único.
+
+**Painel da barbearia**
+- `/painel/barbearias/:tenantId` — reservas de hoje, pendências, clientes, faturamento de serviços concluídos no mês e próximos agendamentos.
+- `.../agenda` — lista de reservas, filtros e ação de confirmação.
+- `.../servicos` — cadastro, edição, ativação e desativação de serviços.
+- `.../equipe` — funcionários, convites e desativação de vínculos.
+- `.../clientes` — consulta e busca de clientes vinculados.
+- `.../configuracoes` — nome, endereço público e informações do estabelecimento.
+
+**Endpoints adicionados**
+- `GET /api/system/dashboard` — apenas SYSTEM.
+- `GET /api/system/tenants` — apenas SYSTEM.
+- `PATCH /api/system/tenants/:tenantId/status` com `{"status":"ACTIVE"}` ou `SUSPENDED` — apenas SYSTEM.
+- `GET /api/tenants/:tenantId/dashboard` — ADMIN ou EMPLOYEE ativo no tenant.
+
+O faturamento resumido soma apenas agendamentos `COMPLETED` no mês corrente da barbearia; **não** equivale a receita recebida/conciliada. A suspensão é manual e não há automação de cobrança ainda. A agenda lista os 100 primeiros agendamentos do endpoint atual; paginação e filtros por intervalo serão um patch posterior.
+
+Instalação e verificação:
+```bash
+pnpm install
+pnpm --filter @aicorta/api test
+pnpm --filter @aicorta/api build
+pnpm --filter @aicorta/web build
+pnpm dev
+```
