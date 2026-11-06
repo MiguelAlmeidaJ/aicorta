@@ -85,7 +85,7 @@ async function createOwner(label: string) {
 
 before(async () => {
   const { AppModule } = await import("../src/app.module.js");
-  app = await NestFactory.create(AppModule, { logger: false });
+  app = await NestFactory.create(AppModule, { logger: ["error", "warn"] });
   app.setGlobalPrefix("api");
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true, forbidNonWhitelisted: true, transform: true,

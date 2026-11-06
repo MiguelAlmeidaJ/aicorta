@@ -14,7 +14,7 @@
     "system:create": "tsx scripts/create-system.ts",
     "test": "tsx --test src/*.spec.ts",
     "test:db": "tsc -p tsconfig.test.json --noEmit && tsx --test test/database.integration.ts",
-    "test:e2e": "tsc -p tsconfig.test.json --noEmit && tsx --test test/http.integration.ts",
+    "test:e2e": "tsc -p tsconfig.e2e.json && node --test dist-e2e/test/http.integration.js",
     "test:quality": "pnpm test && pnpm test:db && pnpm test:e2e"
   },
   "dependencies": {
