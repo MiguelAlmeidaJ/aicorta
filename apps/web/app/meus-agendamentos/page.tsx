@@ -36,7 +36,8 @@ export default function MyBookingsPage() {
     setDates(old => ({ ...old, [item.id]: date }));
     const q = new URLSearchParams({ date, serviceId: item.serviceId, membershipId: item.employeeMembershipId });
     const response = await fetch(`${API}/b/${encodeURIComponent(item.tenant.slug)}/slots?${q}`);
-    setSlots(old => ({ ...old, [item.id]: response.ok ? (await response.json()).slots : [] }));
+    const data: { slots?: string[] } | null = response.ok ? await response.json() : null;
+    setSlots(old => ({ ...old, [item.id]: data?.slots ?? [] }));
   }
   async function reschedule(item: Booking, startsAt: string) {
     const response = await fetch(`${API}/b/${encodeURIComponent(item.tenant.slug)}/bookings/${item.id}/reschedule`,
