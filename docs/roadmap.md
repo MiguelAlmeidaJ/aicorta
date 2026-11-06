@@ -5,7 +5,9 @@
 - [x] Cadastro de estabelecimento e autenticação por 3 identificadores (API)
 - [x] Endpoint de catálogo e endpoints internos iniciais de agenda
 - [ ] Migration versionada, CI e testes com banco
-- [ ] Cookies HttpOnly e sessão segura no frontend
+- [x] Cookies HttpOnly, refresh rotativo, logout e painel de sessão inicial
+- [x] Bootstrap operacional de usuário SYSTEM por script de ambiente
+- [ ] Rate limiting, confirmação de contato, recuperação de senha, testes de autenticação e gestão de dispositivos
 - [ ] Gestão de serviços, equipe, convites e clientes
 - [ ] Agenda semanal, horários, folgas e bloqueio de concorrência
 - [ ] Agendamento público via slug, remarcação e cancelamento

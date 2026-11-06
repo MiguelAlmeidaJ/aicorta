@@ -50,3 +50,38 @@ Os endpoints de agendamento são a primeira base interna, **não** um fluxo púb
 ## Decisões de arquitetura
 
 Veja [docs/architecture.md](docs/architecture.md) e [docs/roadmap.md](docs/roadmap.md). Referências externas são apenas inspiração de produto; nenhum código de terceiros foi copiado.
+
+## Autenticação e sessões
+
+A API usa cookies `HttpOnly` de acesso (15 minutos) e refresh rotativo (30 dias, hash SHA-256 persistido em `AuthSession`).
+O frontend envia `credentials: "include"`; não grava tokens em `localStorage`. O navegador precisa abrir a aplicação na origem configurada em `WEB_ORIGIN`. Use HTTPS em produção e mantenha web e API no mesmo site para os cookies `SameSite=Lax`.
+
+Rotas:
+- `POST /api/auth/register`: cadastra admin + tenant e inicia sessão.
+- `POST /api/auth/login`: aceita `identifier` (username/e-mail/WhatsApp) e `password`.
+- `POST /api/auth/refresh`: revoga o refresh utilizado e cria uma nova sessão.
+- `POST /api/auth/logout`: revoga o refresh atual e limpa cookies.
+- `GET /api/auth/me`: perfil e vínculos do usuário autenticado.
+- `GET /api/auth/system`: prova de acesso apenas para `SYSTEM`.
+- `/painel`: painel inicial autenticado.
+
+**Provisionamento do SYSTEM** (não executado automaticamente):
+
+```bash
+pnpm db:generate
+# Preencha SYSTEM_NAME, SYSTEM_USERNAME, SYSTEM_EMAIL, SYSTEM_WHATSAPP e SYSTEM_PASSWORD no seu ambiente.
+pnpm --filter @aicorta/api system:create
+```
+
+Exemplo de variáveis (não copie valores reais para o Git):
+```dotenv
+SYSTEM_NAME="Administrador da plataforma"
+SYSTEM_USERNAME="operador"
+SYSTEM_EMAIL="operador@example.com"
+SYSTEM_WHATSAPP="+5532999999999"
+SYSTEM_PASSWORD="substitua-por-uma-senha-forte-de-uso-unico"
+```
+
+A senha precisa ter **16+ caracteres**. O script interrompe se qualquer identificador já pertencer a outro usuário; **nunca promove** contas existentes. Reexecutar com a mesma identidade SYSTEM não altera a senha e não cria duplicados. O papel SYSTEM é global, sem bypass automático das permissões de cada tenant.
+
+**Antes de produção:** rate limit anti brute-force, verificação de e-mail/WhatsApp, recuperação de senha, proteção de CSRF reforçada para domínios não confiáveis, revogação de todas as sessões em troca de senha, testes E2E e monitoramento. Crie e versione uma migration após atualizar o schema Prisma.

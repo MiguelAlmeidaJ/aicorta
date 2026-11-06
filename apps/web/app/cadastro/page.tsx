@@ -1,16 +1,18 @@
 "use client";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 export default function RegisterPage() {
+  const router = useRouter();
   const [status, setStatus] = useState("");
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); setStatus("");
     const data = Object.fromEntries(new FormData(e.currentTarget));
     try {
-      const response = await fetch(`${API}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const response = await fetch(`${API}/auth/register`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       if (!response.ok) { const error = await response.json(); throw new Error(Array.isArray(error.message) ? error.message.join(", ") : error.message ?? "Falha no cadastro"); }
-      setStatus("Barbearia criada! Você já pode entrar usando suas credenciais. O painel está em construção.");
+      router.replace("/painel");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Erro no cadastro"); }
   }
   return <main className="auth"><Link href="/" className="brand">✂ AICorta</Link><h1>Cadastre sua barbearia</h1><p>Comece criando seu usuário administrador e estabelecimento.</p><form onSubmit={submit}>
