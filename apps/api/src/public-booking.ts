@@ -4,7 +4,7 @@ import { Throttle } from "@nestjs/throttler";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { AgendaService } from "./agenda";
-import { BookingService, CreateAppointmentDto } from "./booking";
+import { BookingService } from "./booking";
 import { validDate } from "./scheduling-time";
 
 export class PublicBookingDto {

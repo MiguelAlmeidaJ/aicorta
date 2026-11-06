@@ -4,9 +4,18 @@ import { test } from "node:test";
 import { ConflictException, ForbiddenException, GoneException, NotFoundException } from "@nestjs/common";
 import { PeopleService } from "./people";
 
-test("convite não cria acesso sem conta existente", async () => {
-  const people = new PeopleService({ user: { findUnique: async () => null } } as never);
-  await assert.rejects(() => people.invite("tenant", "admin", { email: "new@example.com", role: "EMPLOYEE" }), /conta ativa/);
+test("convite pode ser emitido antes da criação da conta", async () => {
+  let invitationData: unknown;
+  const people = new PeopleService({
+    user: { findUnique: async () => null },
+    tenantInvitation: { create: async ({ data }: { data: unknown }) => {
+      invitationData = data;
+      return { id: "invite", email: "new@example.com", role: "EMPLOYEE", expiresAt: new Date() };
+    } },
+  } as never);
+  const result = await people.invite("tenant", "admin", { email: "new@example.com", role: "EMPLOYEE" });
+  assert.match(result.acceptanceUrl, /\/aceitar-convite\?token=/);
+  assert.deepEqual((invitationData as { email: string; role: string }).email, "new@example.com");
 });
 
 test("convidado com e-mail diferente não aceita convite", async () => {

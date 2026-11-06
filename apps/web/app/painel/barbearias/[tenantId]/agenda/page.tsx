@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { CalendarDays, Check, Search, RefreshCw } from "lucide-react";
-import { apiJson } from "../../../../../lib/api";
+import Link from "next/link";
+import { CalendarDays, Check, Search, RefreshCw, UserX } from "lucide-react";
+import { apiJson, mutation } from "../../../../../lib/api";
 import { dateTime, EmptyState, PageHeader, Panel, secondaryButton, StatusPill } from "../../../../../components/dashboard/ui";
 
 type Appointment = { id: string; startsAt: string; endsAt: string; status: string; priceCents: number;
@@ -14,8 +15,8 @@ export default function AgendaPage() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const load = () => apiJson<Appointment[]>(`/tenants/${tenantId}/appointments`).then(setItems);
-  useEffect(() => { void load().catch(e => setError(e.message)); }, [tenantId]);
+  const load = useCallback(() => apiJson<Appointment[]>(`/tenants/${tenantId}/appointments`).then(setItems), [tenantId]);
+  useEffect(() => { void load().catch(e => setError(e.message)); }, [load]);
   const shown = useMemo(() => items.filter(item =>
     (filter === "ALL" || filter === item.status) &&
     [item.client.name, item.service.name].some(value => value.toLowerCase().includes(query.toLowerCase()))),
@@ -28,11 +29,19 @@ export default function AgendaPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível confirmar"); }
     finally { setBusy(null); }
   }
+  async function finish(id: string, status: "COMPLETED" | "NO_SHOW") {
+    setBusy(id); setError("");
+    try {
+      await apiJson(`/tenants/${tenantId}/appointments/${id}/status`, mutation("PATCH", { status }));
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar o atendimento"); }
+    finally { setBusy(null); }
+  }
   return <>
     <PageHeader kicker="Operação / Agendamentos" title="Agenda"
       description="Acompanhe as reservas e confirme os agendamentos recebidos." 
-      action={<button onClick={() => void load().catch(e => setError(e.message))}
-        className={secondaryButton}><RefreshCw size={16}/> Atualizar</button>}/>
+      action={<div className="flex gap-2"><Link href={`/painel/barbearias/${tenantId}/agenda/configuracao`} className={secondaryButton}>Configurar agenda</Link><button onClick={() => void load().catch(e => setError(e.message))}
+        className={secondaryButton}><RefreshCw size={16}/> Atualizar</button></div>}/>
     <Panel title="Todos os agendamentos" description={`${shown.length} agendamento(s)`}
       right={<div className="flex flex-wrap gap-2">
         <label className="flex items-center gap-2 rounded-xl border border-[#e5e7e1] bg-[#fafbf8] px-3">
@@ -61,9 +70,15 @@ export default function AgendaPage() {
             <td className="py-4 text-xs text-[#737970]">{item.service.name}</td>
             <td className="py-4 text-xs font-medium">{dateTime(item.startsAt)}</td>
             <td className="py-4"><StatusPill status={item.status}/></td>
-            <td className="py-4 text-right">{item.status === "PENDING" &&
+            <td className="py-4 text-right"><div className="flex justify-end gap-2">{item.status === "PENDING" &&
               <button disabled={busy === item.id} onClick={() => void confirm(item.id)}
-                className={secondaryButton}><Check size={15}/>{busy === item.id ? "Salvando" : "Confirmar"}</button>}</td>
+                className={secondaryButton}><Check size={15}/>{busy === item.id ? "Salvando" : "Confirmar"}</button>}
+              {item.status === "CONFIRMED" && new Date(item.startsAt) <= new Date() && <>
+                <button disabled={busy === item.id} onClick={() => void finish(item.id, "COMPLETED")}
+                  className={secondaryButton}><Check size={15}/>Concluir</button>
+                <button disabled={busy === item.id} onClick={() => void finish(item.id, "NO_SHOW")}
+                  className={secondaryButton}><UserX size={15}/>Falta</button>
+              </>}</div></td>
           </tr>)}</tbody>
       </table></div>}
     </Panel>

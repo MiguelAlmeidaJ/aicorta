@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, Injectable, NotFoundException,
-  Param, Patch, Put, Req, Res, UseGuards,
+  Param, Patch, Put, Res, UseGuards,
 } from "@nestjs/common";
 import { IsHexColor, IsOptional, IsString, MaxLength } from "class-validator";
 import type { Response } from "express";

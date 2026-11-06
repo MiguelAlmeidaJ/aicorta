@@ -44,6 +44,14 @@ export class RegisterDto {
   @IsString() @MinLength(32) @MaxLength(256) inviteToken!: string;
 }
 
+export class RegisterClientDto {
+  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @IsString() @Matches(/^[a-z0-9]{3,30}$/) username!: string;
+  @IsEmail() email!: string;
+  @IsString() whatsapp!: string;
+  @IsString() @MinLength(10) password!: string;
+}
+
 export class LoginDto {
   @IsString() identifier!: string;
   @IsString() password!: string;
@@ -104,6 +112,30 @@ export class AuthService {
       await this.startSession(account.user.id, res);
       return { user: this.safeUser(account.user), tenant: { id: account.tenant.id, slug: account.tenant.slug } };
     } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ConflictException("Usuário, e-mail ou WhatsApp já cadastrado");
+      }
+      throw error;
+    }
+  }
+
+  async registerClient(dto: RegisterClientDto, res: Response) {
+    const username = dto.username.trim().toLowerCase();
+    const email = dto.email.trim().toLowerCase();
+    const whatsapp = normalizeBrazilianWhatsapp(dto.whatsapp);
+    if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
+    const passwordHash = await hash(dto.password, 12);
+    try {
+      if (await this.db.user.findFirst({
+        where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true },
+      })) throw new ConflictException("WhatsApp já cadastrado");
+      const user = await this.db.user.create({
+        data: { name: dto.name.trim(), username, email, whatsapp, passwordHash },
+      });
+      await this.startSession(user.id, res);
+      return { user: this.safeUser(user) };
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         throw new ConflictException("Usuário, e-mail ou WhatsApp já cadastrado");
       }
@@ -190,6 +222,7 @@ export class SystemGuard implements CanActivate {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
   @Throttle({ default: { limit: 3, ttl: 60_000 } }) @Post("register") register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) { return this.auth.register(dto, res); }
+  @Throttle({ default: { limit: 3, ttl: 60_000 } }) @Post("register-client") registerClient(@Body() dto: RegisterClientDto, @Res({ passthrough: true }) res: Response) { return this.auth.registerClient(dto, res); }
   @Throttle({ default: { limit: 5, ttl: 60_000 } }) @Post("login") login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) { return this.auth.login(dto, res); }
   @Throttle({ default: { limit: 15, ttl: 60_000 } }) @Post("refresh") refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.refresh(req, res); }
   @Post("logout") logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.logout(req, res); }

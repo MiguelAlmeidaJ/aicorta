@@ -7,13 +7,13 @@ import { EmptyState, fieldClass, PageHeader, Panel, primaryButton, secondaryButt
 
 type Member = { id: string; isActive: boolean; role: string; user: { name: string; email: string; username: string; whatsapp: string } };
 type Invite = { id: string; email: string; role: string; acceptedAt: string | null; revokedAt: string | null; expiresAt: string };
-type Issued = { token: string };
+type Issued = { token: string; acceptanceUrl: string };
 export default function TeamPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -24,13 +24,23 @@ export default function TeamPage() {
     ]);
     setMembers(staff); setInvites(pending);
   };
-  useEffect(() => { void load().catch(e => setError(e.message)); }, [tenantId]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      apiJson<Member[]>(`/tenants/${tenantId}/employees`),
+      apiJson<Invite[]>(`/tenants/${tenantId}/invitations`),
+    ]).then(([staff, pending]) => {
+      if (!active) return;
+      setMembers(staff); setInvites(pending);
+    }).catch(error => { if (active) setError(error instanceof Error ? error.message : "Erro ao carregar equipe"); });
+    return () => { active = false; };
+  }, [tenantId]);
   async function invite(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setSaving(true); setError(""); setMessage(""); setToken("");
+    e.preventDefault(); setSaving(true); setError(""); setMessage(""); setInviteLink("");
     try {
       const created = await apiJson<Issued>(`/tenants/${tenantId}/invitations`, mutation("POST",
         { email, role: "EMPLOYEE" }));
-      setToken(created.token); setEmail(""); setMessage("Convite criado. Compartilhe o código com o colaborador cadastrado no AICorta.");
+      setInviteLink(created.acceptanceUrl); setEmail(""); setMessage("Convite criado. Compartilhe o link para o profissional entrar ou criar a conta.");
       await load();
     } catch(e) { setError(e instanceof Error ? e.message : "Erro ao convidar"); }
     finally { setSaving(false); }
@@ -44,7 +54,7 @@ export default function TeamPage() {
   }
   return <>
     <PageHeader kicker="Gestão / Pessoas" title="Equipe"
-      description="Gerencie os profissionais e convide colaboradores que já possuem conta no AICorta."/>
+      description="Gerencie os profissionais e convide colaboradores, mesmo que ainda não tenham conta."/>
     {error && <p role="alert" className="mb-5 rounded-xl bg-[#faeeee] p-4 text-sm text-[#a14740]">{error}</p>}
     {message && <p role="status" className="mb-5 rounded-xl bg-[#eaf1e8] p-4 text-sm text-[#48654b]">{message}</p>}
     <div className="grid gap-6 xl:grid-cols-[1.4fr_.8fr]">
@@ -64,19 +74,19 @@ export default function TeamPage() {
       <div className="space-y-6">
         <Panel title="Convidar profissional" description="Convite com token de uso único">
           <form onSubmit={invite} className="space-y-4">
-            <label className="block text-xs font-semibold text-[#596057]">E-mail cadastrado
+            <label className="block text-xs font-semibold text-[#596057]">E-mail do profissional
               <input className={fieldClass + " mt-2"} type="email" required value={email}
                 placeholder="profissional@email.com" onChange={e => setEmail(e.target.value)}/></label>
-            <p className="text-xs leading-5 text-[#90958c]">O profissional deve ter uma conta ativa. A vinculação acontece após aceitar o convite.</p>
+            <p className="text-xs leading-5 text-[#90958c]">Se ainda não tiver conta, o profissional poderá criá-la pelo próprio link.</p>
             <button className={primaryButton + " w-full"} disabled={saving}>
               <Plus size={17}/>{saving ? "Enviando..." : "Gerar convite"}
             </button>
           </form>
-          {token && <div className="mt-5 rounded-xl bg-[#f1f4ef] p-4">
-            <p className="mb-2 text-xs font-semibold">Código gerado (exibido uma vez)</p>
-            <input value={token} readOnly onFocus={e => e.currentTarget.select()} className={fieldClass}/>
-            <button className={secondaryButton + " mt-3 w-full"} onClick={() => void navigator.clipboard.writeText(token)}>
-              <Copy size={15}/> Copiar código</button>
+          {inviteLink && <div className="mt-5 rounded-xl bg-[#f1f4ef] p-4">
+            <p className="mb-2 text-xs font-semibold">Link gerado (exibido uma vez)</p>
+            <input value={inviteLink} readOnly onFocus={e => e.currentTarget.select()} className={fieldClass}/>
+            <button className={secondaryButton + " mt-3 w-full"} onClick={() => void navigator.clipboard.writeText(inviteLink)}>
+              <Copy size={15}/> Copiar link</button>
           </div>}
         </Panel>
         <Panel title="Convites recentes" description="Acompanhamento de aceites">

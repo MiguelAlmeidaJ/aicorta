@@ -25,6 +25,40 @@ Web: http://localhost:3000
 API: http://localhost:3001/api  
 Health: http://localhost:3001/api/health
 
+## Execucao com PM2
+
+O ecosystem executa a API compilada e o servidor de producao do Next.js. Antes de iniciar ou recarregar os processos, aplique as migrations e gere os builds:
+
+```bash
+pnpm --filter @aicorta/api exec prisma migrate deploy
+pnpm build
+pnpm pm2:start
+```
+
+Comandos operacionais:
+
+```bash
+pnpm pm2:status
+pnpm pm2:logs
+pnpm pm2:reload
+pnpm pm2:stop
+pnpm pm2:delete
+pnpm pm2:save
+```
+
+Por padrao, a web escuta na porta `3000` e a API usa `API_PORT` do `.env` (ou `3001`). Para alterar apenas a porta web, defina `WEB_PORT` antes de iniciar o PM2. Variaveis `NEXT_PUBLIC_*` devem estar definidas durante `pnpm build`, pois sao incorporadas ao bundle do frontend.
+
+## Verificacao do PostgreSQL
+
+As migrations incluem uma constraint de exclusao GiST que impede reservas ativas sobrepostas para o mesmo profissional. Para executar o teste concorrente, use exclusivamente um banco descartavel com `test` ou `verify` no nome, aplique as migrations e informe sua URL:
+
+```bash
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/aicorta_verify" pnpm --filter @aicorta/api exec prisma migrate deploy
+TEST_DATABASE_URL="postgresql://usuario:senha@localhost:5432/aicorta_verify" pnpm test:db
+```
+
+O teste de banco falha propositalmente se `TEST_DATABASE_URL` estiver ausente ou apontar para um banco sem `test`/`verify` no nome.
+
 Ao executar `pnpm db:migrate`, crie a migration inicial com o nome `init`. Em deploy use `pnpm --filter @aicorta/api exec prisma migrate deploy` depois de versionar migrations.
 
 ## Modelo de acesso

@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Injectable, Param, Patch, Req, UseGuards,
+  Body, Controller, Get, Injectable, Param, Patch, UseGuards,
 } from "@nestjs/common";
 import { IsIn } from "class-validator";
 import { PrismaService } from "./prisma.service";

@@ -1,15 +1,16 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Param, Post, Patch, Req, UseGuards } from "@nestjs/common";
-import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { AgendaService } from "./agenda";
-import { inside, localParts, overlaps, weekday } from "./scheduling-time";
+import { inside, localParts, weekday } from "./scheduling-time";
 
 function translateDbConflict(error: unknown): never {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
   const message = error instanceof Error ? error.message : "";
-  if (code === "23P01" || code === "P2002" || (code === "P2010" && message.includes("23P01")) ||
+  if (code === "23P01" || code === "40P01" || code === "P2002" ||
+      (code === "P2010" && (message.includes("23P01") || message.includes("40P01"))) ||
       message.includes("appointment_professional_no_overlap")) {
     throw new ConflictException("Horário já reservado");
   }
@@ -22,6 +23,9 @@ export class CreateAppointmentDto {
   @IsUUID() clientId!: string;
   @IsDateString() startsAt!: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+}
+export class FinishAppointmentDto {
+  @IsIn(["COMPLETED", "NO_SHOW"]) status!: "COMPLETED" | "NO_SHOW";
 }
 
 @Injectable()
@@ -147,6 +151,16 @@ export class BookingService {
     return { ok: true, status: "CONFIRMED" };
   }
 
+  async finish(tenantId: string, appointmentId: string, actorId: string, status: "COMPLETED" | "NO_SHOW") {
+    await this.assertTeamAccess(tenantId, actorId);
+    const updated = await this.db.appointment.updateMany({
+      where: { id: appointmentId, tenantId, status: "CONFIRMED", startsAt: { lte: new Date() } },
+      data: { status },
+    });
+    if (!updated.count) throw new ConflictException("Atendimento deve estar confirmado e já iniciado");
+    return { ok: true, status };
+  }
+
   async reschedule(tenantId: string, appointmentId: string, actorId: string, time: string) {
     const item = await this.db.appointment.findFirst({ where: { id: appointmentId, tenantId },
       select: { clientId: true, serviceId: true, employeeMembershipId: true, startsAt: true,
@@ -217,6 +231,12 @@ export class BookingController {
   confirm(@Param("tenantId") tenantId: string, @Param("appointmentId") appointmentId: string,
     @Req() req: { user: { id: string } }) {
     return this.booking.confirm(tenantId, appointmentId, req.user.id);
+  }
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
+  @Patch("appointments/:appointmentId/status")
+  finish(@Param("tenantId") tenantId: string, @Param("appointmentId") appointmentId: string,
+    @Req() req: { user: { id: string } }, @Body() dto: FinishAppointmentDto) {
+    return this.booking.finish(tenantId, appointmentId, req.user.id, dto.status);
   }
 
 }

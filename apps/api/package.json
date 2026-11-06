@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "system:create": "tsx scripts/create-system.ts",
-    "test": "tsx --test src/*.spec.ts"
+    "test": "tsx --test src/*.spec.ts",
+    "test:db": "tsc -p tsconfig.test.json --noEmit && tsx --test test/*.integration.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

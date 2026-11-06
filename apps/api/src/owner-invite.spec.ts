@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { validate } from "class-validator";
 import { BadRequestException } from "@nestjs/common";
 import { CreateOwnerInviteDto, OwnerInviteService } from "./owner-invite";
-import { RegisterDto, AuthService } from "./auth";
+import { RegisterClientDto, RegisterDto, AuthService } from "./auth";
 
 test("SYSTEM must set recipient label and valid billing due day", async () => {
   const dto = new CreateOwnerInviteDto();
@@ -24,6 +24,37 @@ test("owner registration rejects usernames with spaces, accents or punctuation",
     assert.ok((await validate(dto)).some(error => error.property === "username"));
   }
   dto.username = "joaomiguel";
+  assert.equal((await validate(dto)).length, 0);
+});
+
+test("client registration does not require an owner invite or create a tenant", async () => {
+  let created: Record<string, unknown> | undefined;
+  const db = {
+    user: {
+      findFirst: async () => null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        created = data;
+        return { id: "client", ...data, globalRole: "USER" };
+      },
+    },
+    authSession: { create: async () => ({}) },
+  };
+  const jwt = { signAsync: async () => "access-token" };
+  const res = { cookie: () => undefined };
+  const auth = new AuthService(db as never, jwt as never);
+  const result = await auth.registerClient({
+    name: "Maria", username: "maria", email: "maria@example.com",
+    whatsapp: "32999999999", password: "senha-forte-123",
+  }, res as never);
+  assert.equal(result.user.id, "client");
+  assert.equal(created?.email, "maria@example.com");
+  assert.equal("businessName" in (created ?? {}), false);
+});
+
+test("client registration DTO validates the independent account fields", async () => {
+  const dto = new RegisterClientDto();
+  dto.name = "Maria"; dto.username = "maria"; dto.email = "maria@example.com";
+  dto.whatsapp = "32999999999"; dto.password = "senha-forte-123";
   assert.equal((await validate(dto)).length, 0);
 });
 

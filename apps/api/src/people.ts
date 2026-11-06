@@ -2,7 +2,7 @@ import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
   GoneException, Injectable, NotFoundException, Param, Patch, Post, Req, UseGuards,
 } from "@nestjs/common";
-import { IsEmail, IsIn, IsString, IsUUID, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsString, MaxLength, MinLength } from "class-validator";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
@@ -48,14 +48,15 @@ export class PeopleService {
   async invite(tenantId: string, issuedById: string, dto: InvitePersonDto) {
     const email = dto.email.trim().toLowerCase();
     const target = await this.db.user.findUnique({ where: { email }, select: { id: true, isActive: true, globalRole: true } });
-    // Não cria perfis usando dados de terceiros; a conta deve existir e aceitar o vínculo.
-    if (!target?.isActive || target.globalRole === "SYSTEM") {
-      throw new BadRequestException("O convidado deve possuir uma conta ativa no AICorta");
+    if (target && (!target.isActive || target.globalRole === "SYSTEM")) {
+      throw new BadRequestException("Esta conta não pode receber convites");
     }
-    const membership = await this.db.membership.findUnique({
-      where: { userId_tenantId: { userId: target.id, tenantId } },
-    });
-    if (membership) throw new ConflictException("O usuário já possui vínculo com este estabelecimento");
+    if (target) {
+      const membership = await this.db.membership.findUnique({
+        where: { userId_tenantId: { userId: target.id, tenantId } },
+      });
+      if (membership) throw new ConflictException("O usuário já possui vínculo com este estabelecimento");
+    }
     const token = randomBytes(32).toString("base64url");
     const invitation = await this.db.tenantInvitation.create({
       data: {
@@ -65,7 +66,9 @@ export class PeopleService {
       select: { id: true, email: true, role: true, expiresAt: true },
     });
     // Token é retornado uma única vez, sem persistência em claro. Não compartilhar em logs.
-    return { ...invitation, token };
+    const acceptanceUrl = new URL("/aceitar-convite", process.env.WEB_ORIGIN ?? "http://localhost:3000");
+    acceptanceUrl.searchParams.set("token", token);
+    return { ...invitation, token, acceptanceUrl: acceptanceUrl.toString() };
   }
 
   async accept(userId: string, token: string) {
