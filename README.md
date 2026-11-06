@@ -85,3 +85,23 @@ SYSTEM_PASSWORD="substitua-por-uma-senha-forte-de-uso-unico"
 WhatsApp é salvo como DDD + celular (11 dígitos, sem +55); entradas com +55 e 55 são aceitas e normalizadas. A senha precisa ter **16+ caracteres**. O script interrompe se qualquer identificador já pertencer a outro usuário; **nunca promove** contas existentes. Reexecutar com a mesma identidade SYSTEM não altera a senha e não cria duplicados. O papel SYSTEM é global, sem bypass automático das permissões de cada tenant.
 
 **Antes de produção:** rate limit anti brute-force, verificação de e-mail/WhatsApp, recuperação de senha, proteção de CSRF reforçada para domínios não confiáveis, revogação de todas as sessões em troca de senha, testes E2E e monitoramento. Crie e versione uma migration após atualizar o schema Prisma.
+
+## Auth 1.1 — recuperação de senha
+
+Configure SMTP no `.env` antes de habilitar o envio de e-mails. Nunca registre links/tokens de recuperação em logs. O fluxo público responde genericamente, evitando informar se o usuário existe.
+
+```dotenv
+SMTP_HOST="smtp.example.com"
+SMTP_PORT=587
+SMTP_USER="usuario"
+SMTP_PASSWORD="senha-de-app"
+SMTP_FROM="AICorta <no-reply@example.com>"
+WEB_ORIGIN="http://localhost:3000"
+```
+
+1. `POST /api/auth/forgot-password` com `{"email":"usuario@example.com"}`.
+2. O usuário recebe link para `/redefinir-senha?token=...`, válido por 15 minutos e uma utilização.
+3. `POST /api/auth/reset-password` com `{"token":"...","password":"nova senha com 10+ caracteres"}`.
+4. A alteração revoga todas as sessões de refresh existentes e invalida JWTs de acesso anteriores.
+
+Limites de requisições em memória: padrão 60/minuto por IP, login 5/minuto, registro 3/minuto e recuperação 3/minuto. Para produção com várias instâncias, usar storage compartilhado e monitoramento de abuso. Atualize o schema antes dos testes: `pnpm db:migrate` e `pnpm db:generate`. A integração SMTP só funciona com credenciais reais.

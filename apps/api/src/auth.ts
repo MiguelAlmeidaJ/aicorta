@@ -9,6 +9,7 @@ import { compare, hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response, CookieOptions } from "express";
 import { PrismaService } from "./prisma.service";
+import { Throttle } from "@nestjs/throttler";
 
 const ACCESS_TTL_SECONDS = 15 * 60;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -132,8 +133,7 @@ export class AuthService {
       include: { memberships: { where: { isActive: true }, select: { tenantId: true, role: true, tenant: { select: { name: true, slug: true, status: true } } } } },
     });
     if (!user || !user.isActive) throw new UnauthorizedException();
-    const { passwordHash: _passwordHash, ...safe } = user;
-    return safe;
+    return { id: user.id, name: user.name, username: user.username, email: user.email, whatsapp: user.whatsapp, globalRole: user.globalRole, isActive: user.isActive, memberships: user.memberships };
   }
 }
 
@@ -145,10 +145,10 @@ export class JwtAuthGuard implements CanActivate {
     const token = cookie(request, accessCookie);
     if (!token) throw new UnauthorizedException("Sessão ausente");
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string; type: string }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; type: string; iat?: number }>(token);
       if (payload.type !== "access" || !payload.sub) throw new UnauthorizedException();
-      const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id: true, isActive: true } });
-      if (!user?.isActive) throw new UnauthorizedException();
+      const user = await this.db.user.findUnique({ where: { id: payload.sub }, select: { id: true, isActive: true, passwordChangedAt: true } });
+      if (!user?.isActive || (user.passwordChangedAt && (!payload.iat || payload.iat * 1000 < user.passwordChangedAt.getTime()))) throw new UnauthorizedException();
       request.user = { id: user.id };
       return true;
     } catch { throw new UnauthorizedException("Sessão inválida ou expirada"); }
@@ -169,9 +169,9 @@ export class SystemGuard implements CanActivate {
 @Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
-  @Post("register") register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) { return this.auth.register(dto, res); }
-  @Post("login") login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) { return this.auth.login(dto, res); }
-  @Post("refresh") refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.refresh(req, res); }
+  @Throttle({ default: { limit: 3, ttl: 60_000 } }) @Post("register") register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) { return this.auth.register(dto, res); }
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) @Post("login") login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) { return this.auth.login(dto, res); }
+  @Throttle({ default: { limit: 15, ttl: 60_000 } }) @Post("refresh") refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.refresh(req, res); }
   @Post("logout") logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.logout(req, res); }
   @UseGuards(JwtAuthGuard) @Get("me") me(@Req() req: AuthRequest) { return this.auth.me(req.user.id); }
   @UseGuards(JwtAuthGuard, SystemGuard) @Get("system") system() { return { role: "SYSTEM", authorized: true }; }

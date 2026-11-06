@@ -42,6 +42,8 @@ model User {
   globalRole   GlobalRole  @default(USER)
   isActive     Boolean     @default(true)
   sessions     AuthSession[]
+  passwordResets PasswordReset[]
+  passwordChangedAt DateTime?
   memberships  Membership[]
   ownedTenants Tenant[]    @relation("TenantOwner")
   clientBookings Appointment[] @relation("BookingClient")
@@ -140,6 +142,18 @@ model AuthSession {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }

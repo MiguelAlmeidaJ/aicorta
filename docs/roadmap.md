@@ -7,7 +7,9 @@
 - [ ] Migration versionada, CI e testes com banco
 - [x] Cookies HttpOnly, refresh rotativo, logout e painel de sessão inicial
 - [x] Bootstrap operacional de usuário SYSTEM por script de ambiente
-- [ ] Rate limiting, confirmação de contato, recuperação de senha, testes de autenticação e gestão de dispositivos
+- [x] Auth 1.1: rate limiting por IP e recuperação de senha por token de uso único via SMTP
+- [ ] Verificação de e-mail/WhatsApp, testes E2E integrados e gestão de dispositivos
+- [ ] Rate limiting compartilhado (Redis) para múltiplas réplicas e proteção adicional por identidade
 - [ ] Gestão de serviços, equipe, convites e clientes
 - [ ] Agenda semanal, horários, folgas e bloqueio de concorrência
 - [ ] Agendamento público via slug, remarcação e cancelamento
