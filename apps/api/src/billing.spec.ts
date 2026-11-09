@@ -47,3 +47,28 @@ test("marcar pago em paralelo grava uma única confirmação", async () => {
   assert.equal(auditCount, 1);
   assert.equal(status, "PAID");
 });
+
+test("reajuste conserva o instante original do contrato após mensalidade emitida", async () => {
+  const original = new Date("2026-11-09T13:21:00.000Z");
+  let saved: Date | undefined;
+  const db = {
+    tenant: {
+      findUnique: async () => ({ monthlyFeeCents: 3000, billingDueDay: 10,
+        billingStartedAt: original, timezone: "America/Sao_Paulo" }),
+      update: async ({ data }: { data: { billingStartedAt: Date } }) => {
+        saved = data.billingStartedAt;
+        return { id: "tenant", name: "Barbearia", ...data };
+      },
+    },
+    monthlyFee: { count: async () => 1 },
+    billingAudit: { create: async () => undefined },
+    $transaction: async (cb: (tx: unknown) => Promise<unknown>) => cb(db),
+  };
+  const billing = new BillingService(db as never);
+  billing.refreshTenantState = async () => ({ overdue: false, operational: true });
+  await billing.configure("tenant", "system", {
+    monthlyFeeCents: 3500, billingDueDay: 10,
+    billingStartedAt: "2026-11-09T12:00:00-03:00",
+  });
+  assert.equal(saved?.toISOString(), original.toISOString());
+});
