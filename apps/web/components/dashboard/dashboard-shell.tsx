@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
-  AlertTriangle, CircleDollarSign, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
+  AlertTriangle, CircleDollarSign, HelpCircle, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
   UsersRound, UserRoundPlus, WalletCards, X, type LucideIcon,
 } from "lucide-react";
 import { apiJson } from "../../lib/api";
@@ -66,6 +66,7 @@ export function DashboardShell({ children, mode, tenantId }: {
     { title: "Convites", href: "/system/convites", icon: UserRoundPlus },
     { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2, exact: true },
     { title: "Padronização de imagens", href: "/system/configuracoes/imagens", icon: ImageIcon },
+    { title: "Perguntas frequentes", href: "/system/faq", icon: HelpCircle },
   ];
   const tenantItems: Item[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboard, exact: true },
