@@ -3,15 +3,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  ArrowRightLeft, BadgeCheck, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
-  ExternalLink, LayoutDashboard, LogOut, Menu, Scissors, Settings2, ShieldCheck,
+  ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
+  ImageIcon, LayoutDashboard, Menu, Scissors, Settings2, ShieldCheck,
   UsersRound, UserRoundPlus, X, type LucideIcon,
 } from "lucide-react";
-import { apiFetch, apiJson } from "../../lib/api";
+import { apiJson } from "../../lib/api";
 import { BrandLogo } from "../brand/brand-provider";
+import { UserMenu } from "../auth/user-menu";
 
 type Membership = { tenantId: string; role: string; tenant: { name: string; slug: string; status: string } };
-type Profile = { id: string; name: string; username: string; globalRole: string; memberships: Membership[] };
+type Profile = { id: string; name: string; username: string; avatarUrl: string | null; globalRole: string; memberships: Membership[] };
 type Item = { title: string; href: string; icon: LucideIcon; exact?: boolean };
 
 export function DashboardShell({ children, mode, tenantId }: {
@@ -29,7 +30,6 @@ export function DashboardShell({ children, mode, tenantId }: {
 
   useEffect(() => {
     let alive = true;
-    setBusy(true);
     apiJson<Profile>("/auth/me").then(result => {
       if (!alive) return;
       if (mode === "system" && result.globalRole !== "SYSTEM") {
@@ -47,13 +47,17 @@ export function DashboardShell({ children, mode, tenantId }: {
     return () => { alive = false; };
   }, [mode, tenantId, router]);
 
-  useEffect(() => { setMobileOpen(false); setShowSwitch(false); }, [pathname]);
+  function closeNavigation() {
+    setMobileOpen(false);
+    setShowSwitch(false);
+  }
 
   const systemItems: Item[] = [
     { title: "Visão geral", href: "/system", icon: LayoutDashboard, exact: true },
     { title: "Barbearias", href: "/system/barbearias", icon: Scissors },
     { title: "Convites", href: "/system/convites", icon: UserRoundPlus },
-    { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2 },
+    { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2, exact: true },
+    { title: "Padronização de imagens", href: "/system/configuracoes/imagens", icon: ImageIcon },
   ];
   const tenantItems: Item[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboard, exact: true },
@@ -66,12 +70,10 @@ export function DashboardShell({ children, mode, tenantId }: {
   const items = mode === "system" ? systemItems : tenantItems.filter(item =>
     membership?.role === "ADMIN" || !["Serviços", "Equipe", "Configurações"].includes(item.title));
   const current = items.find(item => item.exact ? pathname === item.href : pathname.startsWith(item.href + "/") || pathname === item.href);
-  const profileInitials = profile?.name.trim().split(/\s+/).slice(0, 2).map(s => s[0]).join("").toUpperCase() ?? "AC";
-
-  async function logout() {
-    await apiFetch("/auth/logout", { method: "POST" }).catch(() => null);
-    router.replace("/login");
-  }
+  const currentTitle = pathname.endsWith("/minha-conta") ? "Minha conta" : current?.title ?? "Painel";
+  const availableMemberships = profile?.memberships.filter(m =>
+    ["ADMIN", "EMPLOYEE"].includes(m.role) && m.tenant.status === "ACTIVE") ?? [];
+  const canSwitchWorkspace = availableMemberships.length > 1;
 
   if (busy) return <div className="flex min-h-screen items-center justify-center bg-[#f6f7f4]">
     <div className="flex items-center gap-3 text-sm font-medium text-[#747a71]">
@@ -81,13 +83,14 @@ export function DashboardShell({ children, mode, tenantId }: {
   </div>;
   if (!profile) return <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f6f7f4]">
     <p className="text-sm text-[#777c73]">{error || "Acesso indisponível."}</p>
-    <Link href="/login" className="rounded-xl bg-[#161715] px-5 py-3 text-sm font-semibold text-white">Entrar novamente</Link>
+    <Link href="/admin/login" className="rounded-xl bg-[#161715] px-5 py-3 text-sm font-semibold text-white">Entrar novamente</Link>
   </div>;
 
   const links = <nav aria-label="Navegação principal" className="space-y-1">
     {items.map(item => {
       const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
       return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
+        onClick={closeNavigation}
         className={`group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-medium transition
           ${active ? "bg-[#24241e] text-[#f6f5ef] ring-1 ring-[#f2c225]/20"
           : "text-[#999d96] hover:bg-white/[.055] hover:text-[#f5f6f2]"}`}>
@@ -103,50 +106,11 @@ export function DashboardShell({ children, mode, tenantId }: {
     <Link href="/painel" className="group flex min-h-[105px] shrink-0 items-center border-b border-white/[.08] px-6 py-5">
       <BrandLogo dark className="h-[70px] w-[204px] origin-left transition group-hover:opacity-90"/>
     </Link>
-    <div className="mt-6 shrink-0 px-4">
-      <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#76766f]">Workspace</p>
-      <button type="button" onClick={() => setShowSwitch(v => !v)}
-        className="flex w-full items-center gap-3 rounded-xl border border-white/[.09] bg-[#191a18] p-3.5 text-left transition hover:border-[#6d603c]">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#3b3e38] text-[#f5f6f2]">
-          {mode === "system" ? <ShieldCheck size={19}/> : <Scissors size={19}/>}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-bold text-[#f5f6f2]">{mode === "system" ? "AICorta Platform" : membership?.tenant.name ?? "Barbearia"}</span>
-          <span className="mt-1 block text-[10px] text-[#969c93]">{mode === "system" ? "Administração global" : "Painel do estabelecimento"}</span>
-        </span>
-        <ChevronDown size={15} className="text-[#a0a59b]"/>
-      </button>
-      {showSwitch && <div className="mt-2 space-y-1 rounded-xl border border-[#343731] bg-[#20221f] p-2">
-        {profile.globalRole === "SYSTEM" && <Link href="/system" className="flex items-center gap-2 rounded-lg p-2 text-xs text-[#e7e9e4] hover:bg-[#343732]"><ShieldCheck size={15}/> Sistema</Link>}
-        {profile.memberships.filter(m => ["ADMIN", "EMPLOYEE"].includes(m.role) && m.tenant.status === "ACTIVE").map(m =>
-          <Link href={`/painel/barbearias/${m.tenantId}`} key={m.tenantId} className="flex items-center gap-2 rounded-lg p-2 text-xs text-[#e7e9e4] hover:bg-[#343732]">
-            <ArrowRightLeft size={15}/><span className="truncate">{m.tenant.name}</span>
-          </Link>)}
-      </div>}
-    </div>
     <div className="mt-7 min-h-0 flex-1 overflow-y-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Menu principal</p>
       {links}
-      <p className="mb-3 mt-8 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-[#777d74]">Acesso rápido</p>
-      <Link href={mode === "system" ? "/system/convites" : `/b/${membership?.tenant.slug}`}
-        className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] text-[#999d96] transition hover:bg-[#252724] hover:text-white">
-        {mode === "system" ? <UserRoundPlus size={18}/> : <ExternalLink size={18}/>}
-        {mode === "system" ? "Novo convite" : "Página pública"}
-      </Link>
     </div>
-    <div className="shrink-0 border-t border-white/[.08] p-4">
-      <div className="mb-2 flex items-center gap-3 rounded-xl bg-white/[.045] p-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-gold)] text-xs font-bold text-[#161715]">{profileInitials}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-semibold text-white">{profile.name}</span>
-          <span className="block truncate text-[11px] text-[#969c93]">@{profile.username}</span>
-        </span>
-        <BadgeCheck size={16} className="text-[var(--brand-gold)]"/>
-      </div>
-      <button onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-[#afb4ab] transition hover:bg-[#2b2d29] hover:text-white">
-        <LogOut size={17}/> Encerrar sessão
-      </button>
-    </div>
+    <div className="shrink-0 border-t border-white/[.08] px-7 py-5 text-[11px] text-[#747a72]">Versão {process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0"}</div>
   </div>;
 
   return <div className="min-h-screen bg-[#f6f7f4] text-[#161815]">
@@ -165,15 +129,33 @@ export function DashboardShell({ children, mode, tenantId }: {
           <div className="hidden items-center gap-2 text-xs text-[#9a9e96] sm:flex">
             <span>{mode === "system" ? "Plataforma" : "Minha barbearia"}</span>
             <ChevronRight size={15}/>
-            <span className="font-semibold text-[#333630]">{current?.title ?? "Painel"}</span>
+            <span className="font-semibold text-[#333630]">{currentTitle}</span>
           </div>
-          <span className="text-sm font-bold sm:hidden">{current?.title ?? "AICorta"}</span>
+          <span className="text-sm font-bold sm:hidden">{currentTitle}</span>
+          {canSwitchWorkspace ? <div className="relative">
+            <button type="button" aria-haspopup="menu" aria-expanded={showSwitch}
+              onClick={() => setShowSwitch(value => !value)}
+              className="flex max-w-56 items-center gap-2 rounded-xl border border-[#e4e6df] bg-white px-3 py-2 text-xs font-semibold text-[#40443d] transition hover:border-[#cfd2ca]">
+              {mode === "system" ? <ShieldCheck size={15}/> : <Scissors size={15}/>}
+              <span className="hidden truncate md:inline">{mode === "system" ? "AICorta Platform" : membership?.tenant.name ?? "Barbearia"}</span>
+              <ChevronDown size={14} className="shrink-0 text-[#92978e]"/>
+            </button>
+            {showSwitch && <div role="menu" className="absolute right-0 top-[calc(100%+.5rem)] w-64 space-y-1 rounded-xl border border-[#e3e5df] bg-white p-2 shadow-xl md:left-0 md:right-auto">
+              {profile.globalRole === "SYSTEM" && <Link role="menuitem" href="/system" onClick={closeNavigation}
+                className="flex items-center gap-2 rounded-lg p-2.5 text-xs font-medium text-[#3d413a] hover:bg-[#f2f3ef]"><ShieldCheck size={15}/> Administração global</Link>}
+              {availableMemberships.map(m =>
+                <Link role="menuitem" href={`/painel/barbearias/${m.tenantId}`} key={m.tenantId} onClick={closeNavigation}
+                  className="flex items-center gap-2 rounded-lg p-2.5 text-xs font-medium text-[#3d413a] hover:bg-[#f2f3ef]">
+                  <ArrowRightLeft size={15}/><span className="truncate">{m.tenant.name}</span>
+                </Link>)}
+            </div>}
+          </div> : null}
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden items-center gap-2 rounded-full border border-[#e7e9e3] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#70766d] sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-[#5d8062]"/> Ambiente beta
           </span>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e4e6df] bg-white text-xs font-bold">{profileInitials}</span>
+          <UserMenu profile={profile} loginHref="/admin/login"/>
         </div>
       </header>
       <main className="mx-auto max-w-[1560px] px-5 py-7 sm:px-8 lg:px-10 lg:py-9">{children}</main>

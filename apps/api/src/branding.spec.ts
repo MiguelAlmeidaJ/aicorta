@@ -24,6 +24,9 @@ test("public settings return official brand when no customization exists", async
   assert.equal(current.navy, "#050A30");
   assert.equal(current.gold, "#F2C225");
   assert.equal(current.assets.logo, null);
+  assert.equal(current.defaultImages.establishment, null);
+  assert.equal(current.defaultImages.service, null);
+  assert.equal(current.defaultImages.avatar, null);
 });
 
 test("image validation rejects unsupported SVG and forged image bytes", async () => {

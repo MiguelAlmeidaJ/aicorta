@@ -1,16 +1,19 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- identidade visual vem da API configurável */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Scissors } from "lucide-react";
 import { API_URL } from "../../lib/api";
 
 export type BrandAssets = { logo: string | null; dark: string | null; favicon: string | null };
+export type DefaultImages = { establishment: string | null; service: string | null; avatar: string | null };
 export type BrandConfig = {
   name: string; black: string; navy: string; gold: string; silver: string;
-  assets: BrandAssets; updatedAt: string | null;
+  assets: BrandAssets; defaultImages: DefaultImages; updatedAt: string | null;
 };
 export const defaultBrand: BrandConfig = {
   name: "AICorta", black: "#000000", navy: "#050A30", gold: "#F2C225", silver: "#D9D9D9",
-  assets: { logo: null, dark: null, favicon: null }, updatedAt: null,
+  assets: { logo: null, dark: null, favicon: null },
+  defaultImages: { establishment: null, service: null, avatar: null }, updatedAt: null,
 };
 
 type BrandContextValue = { brand: BrandConfig; reload: () => Promise<void> };
@@ -28,7 +31,12 @@ export function BrandProvider({ children }: { children: ReactNode }) {
       setBrand(await response.json());
     } catch { /* Offline: keep safe default branding */ }
   }
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetch(`${API_URL}/branding`, { cache: "no-store" }).then(response => response.ok ? response.json() : null)
+      .then(value => { if (active && value) setBrand(value); }).catch(() => null);
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--brand-black", brand.black);
@@ -59,10 +67,10 @@ const cropCache = new Map<string, string>();
 export function BrandArtwork({ src, alt, className = "", onError }: {
   src: string; alt: string; className?: string; onError?: () => void;
 }) {
-  const [cropped, setCropped] = useState(src);
+  const [result, setResult] = useState<{ src: string; value: string } | null>(null);
+  const cropped = result?.src === src ? result.value : cropCache.get(src) ?? src;
   useEffect(() => {
     let mounted = true;
-    setCropped(cropCache.get(src) ?? src);
     if (cropCache.has(src)) return;
     const image = new Image();
     image.crossOrigin = "anonymous";
@@ -110,7 +118,7 @@ export function BrandArtwork({ src, alt, className = "", onError }: {
         trimmed.getContext("2d")?.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
         const result = trimmed.toDataURL("image/png");
         cropCache.set(src, result);
-        if (mounted) setCropped(result);
+        if (mounted) setResult({ src, value: result });
       } catch { /* Cross-origin image or unsupported canvas: show original */ }
     };
     image.src = src;

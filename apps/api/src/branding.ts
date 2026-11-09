@@ -15,11 +15,14 @@ const DEFAULTS = {
   gold: "#F2C225",
   silver: "#D9D9D9",
 };
-const MAX_IMAGE_BYTES = 400 * 1024;
+const MAX_IMAGE_BYTES = 500 * 1024;
 const assetFields = {
   logo: { bytes: "logo", mime: "logoMime" },
   dark: { bytes: "darkLogo", mime: "darkLogoMime" },
   favicon: { bytes: "favicon", mime: "faviconMime" },
+  establishment: { bytes: "defaultTenantCover", mime: "defaultTenantCoverMime" },
+  service: { bytes: "defaultServiceImage", mime: "defaultServiceImageMime" },
+  avatar: { bytes: "defaultProfileImage", mime: "defaultProfileImageMime" },
 } as const;
 type Slot = keyof typeof assetFields;
 function slotOf(value: string): Slot {
@@ -28,13 +31,13 @@ function slotOf(value: string): Slot {
 }
 function parseImage(dataUrl: string): { mime: string; bytes: Uint8Array } {
   if (typeof dataUrl !== "string" || dataUrl.length > Math.ceil(MAX_IMAGE_BYTES * 1.5) + 100) {
-    throw new BadRequestException("Imagem muito grande (máximo 400 KB)");
+    throw new BadRequestException("Imagem muito grande (máximo 500 KB)");
   }
   const matched = /^data:(image\/(?:png|jpeg|webp|x-icon));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
   if (!matched) throw new BadRequestException("Use PNG, JPG, WEBP ou ICO em base64");
   const mime = matched[1];
   const bytes = Buffer.from(matched[2], "base64");
-  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new BadRequestException("Imagem inválida ou acima de 400 KB");
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new BadRequestException("Imagem inválida ou acima de 500 KB");
   const isPng = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
   const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   const isWebp = bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
@@ -62,7 +65,8 @@ export class BrandingService {
     const settings = await this.db.platformBrand.findUnique({
       where: { id: "platform" },
       select: { name: true, black: true, navy: true, gold: true, silver: true,
-        logoMime: true, darkLogoMime: true, faviconMime: true, updatedAt: true },
+        logoMime: true, darkLogoMime: true, faviconMime: true, defaultTenantCoverMime: true,
+        defaultServiceImageMime: true, defaultProfileImageMime: true, updatedAt: true },
     });
     const version = settings?.updatedAt.getTime() ?? 0;
     const path = (slot: Slot, exists: boolean) => exists ? `/branding/assets/${slot}?v=${version}` : null;
@@ -73,6 +77,11 @@ export class BrandingService {
         logo: path("logo", !!settings?.logoMime),
         dark: path("dark", !!settings?.darkLogoMime),
         favicon: path("favicon", !!settings?.faviconMime),
+      },
+      defaultImages: {
+        establishment: path("establishment", !!settings?.defaultTenantCoverMime),
+        service: path("service", !!settings?.defaultServiceImageMime),
+        avatar: path("avatar", !!settings?.defaultProfileImageMime),
       },
       updatedAt: settings?.updatedAt ?? null,
     };
@@ -115,7 +124,9 @@ export class BrandingService {
     const slot = slotOf(slotName);
     const field = assetFields[slot];
     const row = await this.db.platformBrand.findUnique({ where: { id: "platform" },
-      select: { logo: true, logoMime: true, darkLogo: true, darkLogoMime: true, favicon: true, faviconMime: true } });
+      select: { logo: true, logoMime: true, darkLogo: true, darkLogoMime: true, favicon: true, faviconMime: true,
+        defaultTenantCover: true, defaultTenantCoverMime: true, defaultServiceImage: true,
+        defaultServiceImageMime: true, defaultProfileImage: true, defaultProfileImageMime: true } });
     const image = row?.[field.bytes];
     const mime = row?.[field.mime];
     if (!image || !mime) throw new NotFoundException("Imagem ainda não configurada");

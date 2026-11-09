@@ -8,7 +8,7 @@ import { json, urlencoded } from "express";
 async function bootstrap() {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) throw new Error("Defina JWT_SECRET com 32+ caracteres");
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  // Imagens de marca são enviadas em base64 pela página de configurações SYSTEM.
+  // Imagens de marca e serviços são enviadas em base64 após compressão no navegador.
   app.use(json({ limit: "750kb" }));
   app.use(urlencoded({ extended: true, limit: "750kb" }));
   app.setGlobalPrefix("api");

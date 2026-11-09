@@ -1,15 +1,26 @@
 import {
   Body, CanActivate, ConflictException, Controller, ExecutionContext, ForbiddenException,
-  BadRequestException, Get, Injectable, Post, Req, Res, UnauthorizedException, UseGuards,
+  BadRequestException, Delete, Get, Injectable, NotFoundException, Patch, Post, Put, Req, Res, UnauthorizedException, UseGuards,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { IsEmail, IsString, Matches, MinLength, MaxLength } from "class-validator";
+import { IsEmail, IsOptional, IsString, Matches, MinLength, MaxLength } from "class-validator";
 import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
 import { compare, hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import type { Request, Response, CookieOptions } from "express";
 import { PrismaService } from "./prisma.service";
 import { Throttle } from "@nestjs/throttler";
+
+function parseAvatar(dataUrl: string) {
+  const match = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!match) throw new BadRequestException("A foto deve estar em PNG ou JPG");
+  const decoded = Buffer.from(match[2], "base64");
+  const png = decoded.length > 8 && decoded.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const jpeg = decoded.length > 3 && decoded[0] === 0xff && decoded[1] === 0xd8;
+  if (decoded.length > 500 * 1024 || (match[1] === "image/png" ? !png : !jpeg)) throw new BadRequestException("Foto inválida ou maior que 500 KB");
+  const bytes = new Uint8Array(decoded.length); bytes.set(decoded);
+  return { mime: match[1], bytes };
+}
 
 const ACCESS_TTL_SECONDS = 15 * 60;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -56,6 +67,17 @@ export class LoginDto {
   @IsString() identifier!: string;
   @IsString() password!: string;
 }
+export class UpdateProfileDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
+  @IsOptional() @IsString() @Matches(/^[a-z0-9]{3,30}$/) username?: string;
+  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @IsString() whatsapp?: string;
+}
+export class ChangePasswordDto {
+  @IsString() currentPassword!: string;
+  @IsString() @MinLength(10) newPassword!: string;
+}
+export class UpdateAvatarDto { @IsString() imageDataUrl!: string; }
 
 @Injectable()
 export class AuthService {
@@ -180,12 +202,62 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.db.user.findUnique({
+    const [user, branding] = await Promise.all([this.db.user.findUnique({
       where: { id: userId },
       include: { memberships: { where: { isActive: true }, select: { tenantId: true, role: true, tenant: { select: { name: true, slug: true, status: true } } } } },
-    });
+    }), this.db.platformBrand.findUnique({ where: { id: "platform" }, select: { defaultProfileImageMime: true, updatedAt: true } })]);
     if (!user || !user.isActive) throw new UnauthorizedException();
-    return { id: user.id, name: user.name, username: user.username, email: user.email, whatsapp: user.whatsapp, globalRole: user.globalRole, isActive: user.isActive, memberships: user.memberships };
+    return { id: user.id, name: user.name, username: user.username, email: user.email, whatsapp: user.whatsapp,
+      avatarUrl: user.avatarMime ? `/auth/avatar?v=${user.updatedAt.getTime()}` : branding?.defaultProfileImageMime ?
+        `/branding/assets/avatar?v=${branding.updatedAt.getTime()}` : null,
+      avatarIsDefault: !user.avatarMime && !!branding?.defaultProfileImageMime,
+      globalRole: user.globalRole, isActive: user.isActive, memberships: user.memberships };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const parsedWhatsapp = dto.whatsapp === undefined ? undefined : normalizeBrazilianWhatsapp(dto.whatsapp);
+    if (dto.whatsapp !== undefined && !parsedWhatsapp) throw new BadRequestException("WhatsApp inválido");
+    const whatsapp = parsedWhatsapp ?? undefined;
+    try {
+      await this.db.user.update({ where: { id: userId }, data: {
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.username !== undefined && { username: dto.username.trim().toLowerCase() }),
+        ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase() }),
+        ...(whatsapp !== undefined && { whatsapp }),
+      } });
+      return this.me(userId);
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ConflictException("Usuário, e-mail ou WhatsApp já cadastrado");
+      }
+      throw error;
+    }
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    if (!user || !(await compare(dto.currentPassword, user.passwordHash))) throw new UnauthorizedException("Senha atual incorreta");
+    await this.db.$transaction([
+      this.db.user.update({ where: { id: userId }, data: { passwordHash: await hash(dto.newPassword, 12), passwordChangedAt: new Date() } }),
+      this.db.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+    return { ok: true };
+  }
+
+  async updateAvatar(userId: string, dataUrl: string) {
+    const image = parseAvatar(dataUrl);
+    await this.db.user.update({ where: { id: userId }, data: { avatar: image.bytes, avatarMime: image.mime } });
+    return this.me(userId);
+  }
+  async removeAvatar(userId: string) {
+    await this.db.user.update({ where: { id: userId }, data: { avatar: null, avatarMime: null } });
+    return this.me(userId);
+  }
+  async avatar(userId: string, res: Response) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { avatar: true, avatarMime: true } });
+    if (!user?.avatar || !user.avatarMime) throw new NotFoundException("Foto de perfil não encontrada");
+    res.setHeader("Content-Type", user.avatarMime); res.setHeader("Cache-Control", "private, max-age=3600");
+    return res.send(Buffer.from(user.avatar));
   }
 }
 
@@ -227,5 +299,10 @@ export class AuthController {
   @Throttle({ default: { limit: 15, ttl: 60_000 } }) @Post("refresh") refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.refresh(req, res); }
   @Post("logout") logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) { return this.auth.logout(req, res); }
   @UseGuards(JwtAuthGuard) @Get("me") me(@Req() req: AuthRequest) { return this.auth.me(req.user.id); }
+  @UseGuards(JwtAuthGuard) @Patch("me") updateProfile(@Req() req: AuthRequest, @Body() dto: UpdateProfileDto) { return this.auth.updateProfile(req.user.id, dto); }
+  @UseGuards(JwtAuthGuard) @Patch("password") changePassword(@Req() req: AuthRequest, @Body() dto: ChangePasswordDto) { return this.auth.changePassword(req.user.id, dto); }
+  @UseGuards(JwtAuthGuard) @Put("avatar") updateAvatar(@Req() req: AuthRequest, @Body() dto: UpdateAvatarDto) { return this.auth.updateAvatar(req.user.id, dto.imageDataUrl); }
+  @UseGuards(JwtAuthGuard) @Delete("avatar") removeAvatar(@Req() req: AuthRequest) { return this.auth.removeAvatar(req.user.id); }
+  @UseGuards(JwtAuthGuard) @Get("avatar") avatar(@Req() req: AuthRequest, @Res() res: Response) { return this.auth.avatar(req.user.id, res); }
   @UseGuards(JwtAuthGuard, SystemGuard) @Get("system") system() { return { role: "SYSTEM", authorized: true }; }
 }

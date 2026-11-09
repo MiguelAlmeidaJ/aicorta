@@ -1,18 +1,22 @@
 "use client";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ExternalLink, Save, Settings2, ShieldCheck } from "lucide-react";
-import { apiJson, mutation } from "../../../../../lib/api";
+import { ExternalLink, Save, Trash2 } from "lucide-react";
+import { API_URL, apiJson, mutation } from "../../../../../lib/api";
 import { fieldClass, PageHeader, Panel, primaryButton, StatusPill } from "../../../../../components/dashboard/ui";
+import { TenantCoverCrop } from "../../../../../components/tenants/tenant-cover-crop";
 
-type Settings = { id: string; name: string; slug: string; status: string; billingDueDay: number; timezone: string };
+type Settings = { id: string; name: string; slug: string; status: string; billingDueDay: number; timezone: string;
+  city: string | null; state: string | null; neighborhood: string | null; coverUrl: string | null };
 export default function TenantSettingsPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [value, setValue] = useState<Settings | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [coverDataUrl, setCoverDataUrl] = useState<string | null | undefined>(undefined);
+  const handleCoverChange = useCallback((dataUrl: string | null) => setCoverDataUrl(dataUrl ?? undefined), []);
   useEffect(() => {
     let active = true;
     apiJson<Settings>(`/tenants/${tenantId}/settings`)
@@ -24,9 +28,12 @@ export default function TenantSettingsPage() {
     e.preventDefault(); if (!value) return;
     setSaving(true); setError(""); setMessage("");
     try {
-      const saved = await apiJson<Settings>(`/tenants/${tenantId}/settings`,
-        mutation("PATCH", { name: value.name, slug: value.slug }));
-      setValue(saved); setMessage("Configurações salvas com sucesso.");
+      let saved = await apiJson<Settings>(`/tenants/${tenantId}/settings`,
+        mutation("PATCH", { name: value.name, slug: value.slug, city: value.city ?? "",
+          state: value.state ?? "", neighborhood: value.neighborhood ?? "" }));
+      if (coverDataUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, mutation("PUT", { imageDataUrl: coverDataUrl }));
+      else if (coverDataUrl === null && value.coverUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, { method: "DELETE" });
+      setValue(saved); setCoverDataUrl(undefined); setMessage("Configurações salvas com sucesso.");
     } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível salvar"); }
     finally { setSaving(false); }
   }
@@ -51,6 +58,23 @@ export default function TenantSettingsPage() {
             </div>
             <span className="mt-2 block text-xs font-normal text-[#999e95]">Letras minúsculas, números e hífens. Alterar o slug muda o link público da barbearia.</span>
           </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-semibold text-[#52574f]">Cidade
+              <input maxLength={100} className={fieldClass + " mt-2"} value={value.city ?? ""} onChange={e => setValue({ ...value, city: e.target.value })}/></label>
+            <label className="block text-xs font-semibold text-[#52574f]">Estado (UF)
+              <input maxLength={2} pattern="[A-Za-z]{2}" className={fieldClass + " mt-2 uppercase"} value={value.state ?? ""} onChange={e => setValue({ ...value, state: e.target.value.toUpperCase() })}/></label>
+          </div>
+          <label className="block text-xs font-semibold text-[#52574f]">Bairro
+            <input maxLength={100} className={fieldClass + " mt-2"} value={value.neighborhood ?? ""} onChange={e => setValue({ ...value, neighborhood: e.target.value })}/></label>
+          <div className="border-t border-[#eceee8] pt-6"><p className="text-xs font-semibold text-[#52574f]">Capa da barbearia</p>
+            <p className="mb-4 mt-1 text-xs text-[#92978e]">A imagem aparece na busca e no topo da página pública.</p>
+            {value.coverUrl && coverDataUrl === undefined ? <div className="relative overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element -- imagem servida pela API */}
+              <img src={`${API_URL}${value.coverUrl}`} alt={`Capa atual de ${value.name}`} className="aspect-[1280/520] w-full object-cover"/>
+              <button type="button" onClick={() => setCoverDataUrl(null)} className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold shadow"><Trash2 size={14}/> Remover</button>
+            </div> : coverDataUrl === null ? <button type="button" onClick={() => setCoverDataUrl(undefined)} className="text-xs font-semibold underline">Manter capa atual</button> :
+              <TenantCoverCrop onChange={handleCoverChange}/>}
+          </div>
           <button disabled={saving} type="submit" className={primaryButton}>
             <Save size={17}/>{saving ? "Salvando..." : "Salvar alterações"}
           </button>

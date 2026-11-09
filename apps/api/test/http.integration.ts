@@ -123,6 +123,28 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.ok(systemCookie.includes("aicorta_access="));
     const allowed = await request("GET", "/api/system/dashboard", undefined, systemCookie);
     assert.equal(allowed.status, 200);
+    const manual = await request("POST", "/api/system/tenants", {
+      name: "Barbearia Manual E2E", slug: `manual-${suffix}`, billingDueDay: 12,
+      ownerName: "Proprietário Manual", ownerUsername: `manual${suffix}`,
+      ownerEmail: `manual-${suffix}@example.test`, ownerWhatsapp: makePhone(20),
+      ownerPassword: password,
+    }, systemCookie);
+    assert.equal(manual.status, 201, JSON.stringify(manual.json));
+    const manualTenant = manual.json as unknown as { id: string; owner: { id: string } };
+    ids.tenants.push(manualTenant.id); ids.users.push(manualTenant.owner.id);
+    const membership = await db.membership.findUnique({
+      where: { userId_tenantId: { userId: manualTenant.owner.id, tenantId: manualTenant.id } },
+    });
+    assert.equal(membership?.role, "ADMIN");
+    const ownerLogin = await request("POST", "/api/auth/login", {
+      identifier: `manual${suffix}`, password,
+    });
+    assert.equal(ownerLogin.status, 201);
+    assert.equal((await request("POST", "/api/system/tenants", {
+      name: "Sem permissão", slug: `denied-${suffix}`, billingDueDay: 10,
+      ownerName: "Sem permissão", ownerUsername: `denied${suffix}`,
+      ownerEmail: `denied-${suffix}@example.test`, ownerWhatsapp: makePhone(21), ownerPassword: password,
+    }, cookies(ownerLogin.headers))).status, 403);
   });
 
   await t.test("convite de proprietário de uso único cria dois tenants isolados", async () => {
@@ -157,6 +179,9 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     const membershipId = user.memberships.find(m => m.tenantId === tenantA)?.id;
     assert.ok(membershipId);
     ownerMembershipA = membershipId;
+    assert.equal(await db.employeeService.count({
+      where: { serviceId, membershipId: ownerMembershipA },
+    }), 1, "Serviço sem seleção explícita deve ser vinculado ao proprietário");
     const windows = Array.from({ length: 7 }, (_, weekday) => ({
       weekday, startMinute: 540, endMinute: 1200,
     }));
@@ -185,6 +210,32 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.equal((await request("GET", `/api/tenants/${tenantA}/services/manage`, undefined, clientCookie)).status, 403);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/agenda/hours`, undefined, clientCookie)).status, 403);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/services/manage`)).status, 401);
+    const lookup = await request("GET",
+      `/api/tenants/${tenantA}/employees/lookup?email=${encodeURIComponent(`client-${suffix}-0@example.test`)}`,
+      undefined, ownerCookie);
+    assert.equal(lookup.status, 200, JSON.stringify(lookup.json));
+    assert.equal(lookup.json.exists, true);
+    assert.equal((await request("GET",
+      `/api/tenants/${tenantA}/employees/lookup?email=${encodeURIComponent(`client-${suffix}-1@example.test`)}`,
+      undefined, clientCookie)).status, 403);
+    const linked = await request("POST", `/api/tenants/${tenantA}/employees`, {
+      email: `client-${suffix}-0@example.test`,
+    }, ownerCookie);
+    assert.equal(linked.status, 201, JSON.stringify(linked.json));
+    assert.equal(linked.json.role, "EMPLOYEE");
+    const direct = await request("POST", `/api/tenants/${tenantA}/employees`, {
+      email: `employee-${suffix}@example.test`, name: "Funcionário Direto",
+      username: `employee${suffix}`, whatsapp: makePhone(30), password,
+    }, ownerCookie);
+    assert.equal(direct.status, 201, JSON.stringify(direct.json));
+    const directUser = direct.json.user as { id: string };
+    ids.users.push(directUser.id);
+    const employeeLogin = await request("POST", "/api/auth/login", {
+      identifier: `employee${suffix}`, password,
+    });
+    assert.equal(employeeLogin.status, 201);
+    assert.equal((await request("GET", `/api/tenants/${tenantA}/dashboard`,
+      undefined, cookies(employeeLogin.headers))).status, 200);
   });
 
   await t.test("duas reservas HTTP simultâneas não duplicam o mesmo horário", async () => {

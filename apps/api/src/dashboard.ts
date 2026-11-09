@@ -1,15 +1,28 @@
 import {
-  Body, Controller, Get, Injectable, Param, Patch, Req, UseGuards,
+  BadRequestException, Body, ConflictException, Controller, Get, Injectable, Param, Patch, Post, Req, UseGuards,
 } from "@nestjs/common";
-import { IsIn } from "class-validator";
+import { IsEmail, IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
+import { hash } from "bcryptjs";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard, SystemGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { localParts, localToUtc } from "./scheduling-time";
+import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
 
 export class ChangeTenantStatusDto {
   @IsIn(["ACTIVE", "SUSPENDED"])
   status!: "ACTIVE" | "SUSPENDED";
+}
+
+export class CreateTenantDto {
+  @IsString() @MinLength(2) @MaxLength(100) name!: string;
+  @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MinLength(3) @MaxLength(50) slug!: string;
+  @IsInt() @Min(1) @Max(31) billingDueDay!: number;
+  @IsString() @MinLength(2) @MaxLength(100) ownerName!: string;
+  @IsString() @Matches(/^[a-z0-9]{3,30}$/) ownerUsername!: string;
+  @IsEmail() ownerEmail!: string;
+  @IsString() ownerWhatsapp!: string;
+  @IsString() @MinLength(10) @MaxLength(128) ownerPassword!: string;
 }
 
 @Injectable()
@@ -43,6 +56,48 @@ export class DashboardService {
         _count: { select: { appointments: true, services: true, memberships: true } },
       },
     });
+  }
+
+  async createTenant(dto: CreateTenantDto) {
+    const whatsapp = normalizeBrazilianWhatsapp(dto.ownerWhatsapp);
+    if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
+    const passwordHash = await hash(dto.ownerPassword, 12);
+    try {
+      return await this.db.$transaction(async tx => {
+        if (await tx.user.findFirst({
+          where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true },
+        })) throw new ConflictException("WhatsApp já cadastrado");
+        const owner = await tx.user.create({
+          data: {
+            name: dto.ownerName.trim(), username: dto.ownerUsername.trim().toLowerCase(),
+            email: dto.ownerEmail.trim().toLowerCase(), whatsapp, passwordHash,
+          },
+        });
+        const tenant = await tx.tenant.create({
+          data: {
+            name: dto.name.trim(), slug: dto.slug.trim().toLowerCase(), ownerId: owner.id,
+            billingDueDay: dto.billingDueDay,
+          },
+        });
+        await tx.membership.create({
+          data: { userId: owner.id, tenantId: tenant.id, role: "ADMIN" },
+        });
+        return tx.tenant.findUniqueOrThrow({
+          where: { id: tenant.id },
+          select: {
+            id: true, name: true, slug: true, status: true, createdAt: true,
+            billingDueDay: true, owner: { select: { id: true, name: true, email: true } },
+            _count: { select: { appointments: true, services: true, memberships: true } },
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ConflictException("Slug, usuário, e-mail ou WhatsApp já cadastrado");
+      }
+      throw error;
+    }
   }
 
   async setTenantStatus(id: string, status: "ACTIVE" | "SUSPENDED") {
@@ -111,6 +166,10 @@ export class DashboardController {
   @UseGuards(JwtAuthGuard, SystemGuard)
   @Get("system/tenants")
   tenants() { return this.dashboards.tenants(); }
+
+  @UseGuards(JwtAuthGuard, SystemGuard)
+  @Post("system/tenants")
+  createTenant(@Body() dto: CreateTenantDto) { return this.dashboards.createTenant(dto); }
 
   @UseGuards(JwtAuthGuard, SystemGuard)
   @Patch("system/tenants/:tenantId/status")

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Injectable, Param, Post, Patch, Query, Req, UseGuards } from "@nestjs/common";
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MaxLength } from "class-validator";
+import { ArrayMaxSize, IsArray, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MaxLength } from "class-validator";
 import { Type } from "class-transformer";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
@@ -20,6 +20,7 @@ function translateDbConflict(error: unknown): never {
 
 export class CreateAppointmentDto {
   @IsUUID() serviceId!: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsUUID("all", { each: true }) serviceIds?: string[];
   @IsUUID() employeeMembershipId!: string;
   @IsUUID() clientId!: string;
   @IsDateString() startsAt!: string;
@@ -85,19 +86,24 @@ export class BookingService {
     if (selfService) {
       if (dto.clientId !== userId) throw new ForbiddenException("Agendamento em nome de outro usuário não permitido");
     } else await this.assertTeamAccess(tenantId, userId);
-    const [service, employee, client] = await Promise.all([
-      this.db.service.findFirst({ where: { id: dto.serviceId, tenantId, isActive: true } }),
+    const serviceIds = [...new Set(dto.serviceIds?.length ? dto.serviceIds : [dto.serviceId])];
+    const [services, employee, client] = await Promise.all([
+      this.db.service.findMany({ where: { id: { in: serviceIds }, tenantId, isActive: true } }),
       this.db.membership.findFirst({ where: { id: dto.employeeMembershipId, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } } }),
       this.db.user.findFirst({ where: { id: dto.clientId, isActive: true, ...(selfService ? { globalRole: "USER" } : { memberships: { some: { tenantId, role: "CLIENT", isActive: true } } }) } }),
     ]);
-    if (!service || !employee || !client) throw new BadRequestException("Serviço, profissional ou cliente inválido");
+    if (services.length !== serviceIds.length || !employee || !client) throw new BadRequestException("Serviço, profissional ou cliente inválido");
+    const orderedServices = serviceIds.map(id => services.find(service => service.id === id)!);
+    const service = orderedServices[0];
+    const durationMinutes = orderedServices.reduce((total, item) => total + item.durationMinutes, 0);
+    const priceCents = orderedServices.reduce((total, item) => total + item.priceCents, 0);
     const startsAt = new Date(dto.startsAt);
     if (Number.isNaN(startsAt.getTime()) || startsAt <= new Date()) throw new BadRequestException("Data deve estar no futuro");
-    const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(startsAt, tenant.timezone);
     const endLocal = localParts(endsAt, tenant.timezone);
-    if (local.date !== endLocal.date || endLocal.minute !== local.minute + service.durationMinutes ||
+    if (local.date !== endLocal.date || endLocal.minute !== local.minute + durationMinutes ||
         local.minute % 15 !== 0) throw new BadRequestException("Horário fora da grade de 15 minutos");
     try { return await this.db.$transaction(async tx => {
       // PostgreSQL transaction-scoped lock is shared between all API replicas using the same DB.
@@ -116,26 +122,27 @@ export class BookingService {
         tx.timeOff.findFirst({ where: { tenantId, membershipId: employee.id, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }),
         tx.appointment.findFirst({ where: { tenantId, employeeMembershipId: employee.id, status: { in: ["PENDING", "CONFIRMED"] },
           startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } }),
-        tx.employeeService.findUnique({ where: { membershipId_serviceId: { membershipId: employee.id, serviceId: service.id } } }),
+        tx.employeeService.count({ where: { membershipId: employee.id, serviceId: { in: serviceIds } } }),
       ]);
-      if (!inside(shop, local.minute, endLocal.minute) || !inside(staff, local.minute, endLocal.minute) || !assigned) {
+      if (!inside(shop, local.minute, endLocal.minute) || !inside(staff, local.minute, endLocal.minute) || assigned !== serviceIds.length) {
         throw new BadRequestException("Profissional indisponível para este serviço e horário");
       }
       if (off || busy) throw new ConflictException("Horário já ocupado ou bloqueado");
       // Revalidate membership and service after lock, within the same transaction.
       const current = await tx.membership.findFirst({ where: { id: employee.id, tenantId, isActive: true,
         role: { in: ["ADMIN", "EMPLOYEE"] } } });
-      const activeService = await tx.service.findFirst({ where: { id: service.id, tenantId, isActive: true } });
-      if (!current || !activeService) throw new BadRequestException("Profissional ou serviço inativo");
+      const activeServices = await tx.service.count({ where: { id: { in: serviceIds }, tenantId, isActive: true } });
+      if (!current || activeServices !== serviceIds.length) throw new BadRequestException("Profissional ou serviço inativo");
       return tx.appointment.create({ data: { tenantId, serviceId: service.id,
         employeeMembershipId: employee.id, clientId: client.id, startsAt, endsAt,
-        priceCents: service.priceCents, notes: dto.notes } });
+        priceCents, notes: dto.notes, services: { create: serviceIds.map(serviceId => ({ serviceId })) } } });
     }); } catch (error) { translateDbConflict(error); }
   }
   async mine(userId: string) {
     return this.db.appointment.findMany({ where: { clientId: userId },
       select: { id: true, tenantId: true, serviceId: true, employeeMembershipId: true, startsAt: true, endsAt: true, status: true, priceCents: true,
-        service: { select: { name: true } }, tenant: { select: { name: true, slug: true, timezone: true } },
+        service: { select: { name: true } }, services: { select: { service: { select: { id: true, name: true } } } },
+        tenant: { select: { name: true, slug: true, timezone: true } },
         employee: { select: { user: { select: { name: true } } } } },
       orderBy: { startsAt: "desc" }, take: 100 });
   }
@@ -185,7 +192,7 @@ export class BookingService {
   async reschedule(tenantId: string, appointmentId: string, actorId: string, time: string) {
     const item = await this.db.appointment.findFirst({ where: { id: appointmentId, tenantId },
       select: { clientId: true, serviceId: true, employeeMembershipId: true, startsAt: true,
-        endsAt: true, status: true } });
+        endsAt: true, status: true, services: { select: { serviceId: true } } } });
     if (!item) throw new BadRequestException("Reserva não encontrada");
     if (actorId !== item.clientId) throw new ForbiddenException("Somente o cliente pode remarcar");
     if (!["PENDING", "CONFIRMED"].includes(item.status) || item.startsAt.getTime() - Date.now() < 2 * 3600000) {
@@ -195,7 +202,8 @@ export class BookingService {
     if (Number.isNaN(start.getTime()) || start <= new Date()) throw new BadRequestException("Novo horário inválido");
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(start, tenant.timezone);
-    const possible = await this.agenda.availability(tenantId, item.serviceId, item.employeeMembershipId, local.date);
+    const serviceIds = item.services.length ? item.services.map(row => row.serviceId) : [item.serviceId];
+    const possible = await this.agenda.availabilityForServices(tenantId, serviceIds, item.employeeMembershipId, local.date);
     if (!possible.slots.includes(start.toISOString())) throw new ConflictException("Novo horário indisponível");
     const end = new Date(start.getTime() + item.endsAt.getTime() - item.startsAt.getTime());
     try { return await this.db.$transaction(async tx => {
@@ -203,22 +211,22 @@ export class BookingService {
       const original = await tx.appointment.findUnique({ where: { id: appointmentId } });
       if (!original || !["PENDING", "CONFIRMED"].includes(original.status) ||
           original.startsAt.getTime() - Date.now() < 2 * 3600000) throw new ConflictException("Reserva alterada");
-      const [collision, leave, professional, service, enabled, shop, staff] = await Promise.all([
+      const [collision, leave, professional, services, enabled, shop, staff] = await Promise.all([
         tx.appointment.findFirst({ where: { tenantId, employeeMembershipId: item.employeeMembershipId,
           id: { not: appointmentId }, status: { in: ["PENDING", "CONFIRMED"] },
           startsAt: { lt: end }, endsAt: { gt: start } } }),
         tx.timeOff.findFirst({ where: { tenantId, membershipId: item.employeeMembershipId,
           startsAt: { lt: end }, endsAt: { gt: start } } }),
         tx.membership.findFirst({ where: { tenantId, id: item.employeeMembershipId, isActive: true } }),
-        tx.service.findFirst({ where: { tenantId, id: item.serviceId, isActive: true } }),
-        tx.employeeService.findUnique({ where: { membershipId_serviceId: {
-          membershipId: item.employeeMembershipId, serviceId: item.serviceId } } }),
+        tx.service.findMany({ where: { tenantId, id: { in: serviceIds }, isActive: true } }),
+        tx.employeeService.count({ where: { membershipId: item.employeeMembershipId, serviceId: { in: serviceIds } } }),
         tx.workWindow.findMany({ where: { tenantId, membershipId: null, weekday: weekday(local.date) } }),
         tx.workWindow.findMany({ where: { tenantId, membershipId: item.employeeMembershipId, weekday: weekday(local.date) } }),
       ]);
       const endLocal = localParts(end, tenant.timezone);
-      if (collision || leave || !professional || !service || !enabled ||
-        endLocal.date !== local.date || endLocal.minute !== local.minute + service.durationMinutes ||
+      const durationMinutes = (item.endsAt.getTime() - item.startsAt.getTime()) / 60000;
+      if (collision || leave || !professional || services.length !== serviceIds.length || enabled !== serviceIds.length ||
+        endLocal.date !== local.date || endLocal.minute !== local.minute + durationMinutes ||
         !inside(shop, local.minute, endLocal.minute) || !inside(staff, local.minute, endLocal.minute)) {
         throw new ConflictException("Novo horário indisponível");
       }

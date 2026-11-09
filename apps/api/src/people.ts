@@ -1,13 +1,15 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
-  GoneException, Injectable, NotFoundException, Param, Patch, Post, Req, UseGuards,
+  GoneException, Injectable, NotFoundException, Param, Patch, Post, Query, Req, UseGuards,
 } from "@nestjs/common";
-import { IsEmail, IsIn, IsString, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { Throttle } from "@nestjs/throttler";
+import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 type InviteRole = "EMPLOYEE" | "CLIENT";
@@ -19,6 +21,16 @@ export class InvitePersonDto {
 }
 export class AcceptInvitationDto {
   @IsString() @MinLength(32) @MaxLength(256) token!: string;
+}
+export class LookupEmployeeDto {
+  @IsEmail() email!: string;
+}
+export class CreateEmployeeDto {
+  @IsEmail() email!: string;
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
+  @IsOptional() @IsString() @Matches(/^[a-z0-9]{3,30}$/) username?: string;
+  @IsOptional() @IsString() whatsapp?: string;
+  @IsOptional() @IsString() @MinLength(10) @MaxLength(128) password?: string;
 }
 
 @Injectable()
@@ -43,6 +55,99 @@ export class PeopleService {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+  }
+
+  async lookupEmployee(tenantId: string, emailInput: string) {
+    const email = emailInput.trim().toLowerCase();
+    const user = await this.db.user.findUnique({
+      where: { email },
+      select: {
+        id: true, name: true, username: true, email: true, isActive: true, globalRole: true,
+        memberships: { where: { tenantId }, select: { role: true, isActive: true }, take: 1 },
+      },
+    });
+    if (!user) return { exists: false, email };
+    const membership = user.memberships[0] ?? null;
+    const unavailable = !user.isActive || user.globalRole === "SYSTEM" || membership?.role === "ADMIN" ||
+      (membership?.role === "EMPLOYEE" && membership.isActive);
+    return {
+      exists: true, email, canLink: !unavailable,
+      user: { name: user.name, username: user.username, email: user.email },
+      membership,
+      reason: !user.isActive || user.globalRole === "SYSTEM" ? "Esta conta não pode ser vinculada" :
+        membership?.role === "ADMIN" ? "Esta pessoa já é administradora" :
+        membership?.role === "EMPLOYEE" && membership.isActive ? "Esta pessoa já está na equipe" : null,
+    };
+  }
+
+  async addEmployee(tenantId: string, dto: CreateEmployeeDto) {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.db.user.findUnique({
+      where: { email }, select: { id: true, name: true, isActive: true, globalRole: true },
+    });
+    if (existing) {
+      if (!existing.isActive || existing.globalRole === "SYSTEM") {
+        throw new BadRequestException("Esta conta não pode ser vinculada à equipe");
+      }
+      return this.db.$transaction(async tx => {
+        const membership = await tx.membership.findUnique({
+          where: { userId_tenantId: { userId: existing.id, tenantId } },
+        });
+        if (membership?.role === "ADMIN") throw new ConflictException("Esta pessoa já é administradora");
+        if (membership?.role === "EMPLOYEE" && membership.isActive) {
+          throw new ConflictException("Esta pessoa já está na equipe");
+        }
+        const linked = membership ? await tx.membership.update({
+          where: { id: membership.id }, data: { role: "EMPLOYEE", isActive: true },
+          select: { id: true, role: true, isActive: true, createdAt: true,
+            user: { select: { id: true, name: true, username: true, email: true, whatsapp: true } } },
+        }) : await tx.membership.create({
+          data: { userId: existing.id, tenantId, role: "EMPLOYEE" },
+          select: { id: true, role: true, isActive: true, createdAt: true,
+            user: { select: { id: true, name: true, username: true, email: true, whatsapp: true } } },
+        });
+        await tx.tenantInvitation.updateMany({
+          where: { tenantId, email, role: "EMPLOYEE", acceptedAt: null, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return linked;
+      });
+    }
+
+    if (!dto.name?.trim() || !dto.username || !dto.whatsapp || !dto.password) {
+      throw new BadRequestException("Preencha nome, usuário, WhatsApp e senha para criar a nova conta");
+    }
+    const whatsapp = normalizeBrazilianWhatsapp(dto.whatsapp);
+    if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
+    if (await this.db.user.findFirst({
+      where: { whatsapp: { in: whatsappVariants(whatsapp) } }, select: { id: true },
+    })) throw new ConflictException("WhatsApp já cadastrado");
+    const passwordHash = await hash(dto.password, 12);
+    try {
+      return await this.db.$transaction(async tx => {
+        const user = await tx.user.create({
+          data: {
+            name: dto.name!.trim(), username: dto.username!.trim().toLowerCase(),
+            email, whatsapp, passwordHash,
+          },
+        });
+        const linked = await tx.membership.create({
+          data: { userId: user.id, tenantId, role: "EMPLOYEE" },
+          select: { id: true, role: true, isActive: true, createdAt: true,
+            user: { select: { id: true, name: true, username: true, email: true, whatsapp: true } } },
+        });
+        await tx.tenantInvitation.updateMany({
+          where: { tenantId, email, role: "EMPLOYEE", acceptedAt: null, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        return linked;
+      });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ConflictException("Usuário, e-mail ou WhatsApp já cadastrado");
+      }
+      throw error;
+    }
   }
 
   async invite(tenantId: string, issuedById: string, dto: InvitePersonDto) {
@@ -130,6 +235,19 @@ export class PeopleController {
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
   @Get("tenants/:tenantId/employees")
   employees(@Param("tenantId") tenantId: string) { return this.people.list(tenantId, "EMPLOYEE"); }
+
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
+  @Get("tenants/:tenantId/employees/lookup")
+  lookupEmployee(@Param("tenantId") tenantId: string, @Query() dto: LookupEmployeeDto) {
+    return this.people.lookupEmployee(tenantId, dto.email);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
+  @Post("tenants/:tenantId/employees")
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
+  addEmployee(@Param("tenantId") tenantId: string, @Body() dto: CreateEmployeeDto) {
+    return this.people.addEmployee(tenantId, dto);
+  }
 
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")
   @Get("tenants/:tenantId/clients")

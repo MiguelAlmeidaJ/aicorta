@@ -72,6 +72,20 @@ export class AgendaService {
     return this.db.$transaction(async tx => {
       await tx.employeeService.deleteMany({ where: { membershipId: memberId } });
       if (ids.length) await tx.employeeService.createMany({ data: ids.map(serviceId => ({ membershipId: memberId, serviceId })) });
+      const unassigned = await tx.service.findMany({
+        where: { tenantId, employees: { none: {} } }, select: { id: true },
+      });
+      if (unassigned.length) {
+        const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { ownerId: true } });
+        const owner = tenant && await tx.membership.findUnique({
+          where: { userId_tenantId: { userId: tenant.ownerId, tenantId } }, select: { id: true, isActive: true },
+        });
+        if (!owner?.isActive) throw new BadRequestException("O proprietário precisa ter um vínculo ativo");
+        await tx.employeeService.createMany({
+          data: unassigned.map(service => ({ membershipId: owner.id, serviceId: service.id })),
+          skipDuplicates: true,
+        });
+      }
       return { ok: true, total: ids.length };
     });
   }
@@ -101,12 +115,18 @@ export class AgendaService {
     return this.db.timeOff.findMany({ where: { tenantId, membershipId: memberId }, orderBy: { startsAt: "asc" } });
   }
   async availability(tenantId: string, serviceId: string, memberId: string, date: string) {
+    return this.availabilityForServices(tenantId, [serviceId], memberId, date);
+  }
+  async availabilityForServices(tenantId: string, serviceIds: string[], memberId: string, date: string) {
     if (!validDate(date)) throw new BadRequestException("Data inválida (AAAA-MM-DD)");
     const tenant = await this.tenant(tenantId);
     await this.professional(tenantId, memberId);
-    const service = await this.db.service.findFirst({ where: { tenantId, id: serviceId, isActive: true,
+    const ids = [...new Set(serviceIds)];
+    if (!ids.length || ids.length > 10) throw new BadRequestException("Selecione entre 1 e 10 serviços");
+    const services = await this.db.service.findMany({ where: { tenantId, id: { in: ids }, isActive: true,
       employees: { some: { membershipId: memberId } } }, select: { durationMinutes: true } });
-    if (!service || service.durationMinutes < 1) throw new BadRequestException("Serviço não atribuído ao profissional");
+    if (services.length !== ids.length) throw new BadRequestException("Serviço não atribuído ao profissional");
+    const durationMinutes = services.reduce((total, service) => total + service.durationMinutes, 0);
     const wday = weekday(date);
     const [shop, staff] = await Promise.all([
       this.db.workWindow.findMany({ where: { tenantId, membershipId: null, weekday: wday } }),
@@ -128,13 +148,13 @@ export class AgendaService {
     ]);
     const slots: string[] = [];
     const now = new Date();
-    for (let m = 0; m + service.durationMinutes <= 1440; m += 15) {
-      if (!inside(shop, m, m + service.durationMinutes) || !inside(staff, m, m + service.durationMinutes)) continue;
+    for (let m = 0; m + durationMinutes <= 1440; m += 15) {
+      if (!inside(shop, m, m + durationMinutes) || !inside(staff, m, m + durationMinutes)) continue;
       const start = localToUtc(date, m, tenant.timezone);
-      const end = start && new Date(start.getTime() + service.durationMinutes * 60000);
+      const end = start && new Date(start.getTime() + durationMinutes * 60000);
       if (!start || !end || start <= now) continue;
       const endLocal = localParts(end, tenant.timezone);
-      if (endLocal.date !== date || endLocal.minute !== m + service.durationMinutes) continue;
+      if (endLocal.date !== date || endLocal.minute !== m + durationMinutes) continue;
       if ([...bookings, ...timeOff].some(block => overlaps(start, end, block.startsAt, block.endsAt))) continue;
       slots.push(start.toISOString());
     }

@@ -8,6 +8,7 @@ import {
   Clock3, RefreshCw, Scissors, UserRound, X,
 } from "lucide-react";
 import { BrandLogo } from "../../components/brand/brand-provider";
+import { UserMenu } from "../../components/auth/user-menu";
 import { apiFetch, apiJson } from "../../lib/api";
 import { money, StatusPill } from "../../components/dashboard/ui";
 
@@ -15,7 +16,7 @@ type Booking = {
   id: string; tenantId: string; serviceId: string; employeeMembershipId: string;
   status: string; startsAt: string; endsAt: string; priceCents: number;
   tenant: { name: string; slug: string; timezone: string };
-  service: { name: string }; employee: { user: { name: string } };
+  service: { name: string }; services: { service: { id: string; name: string } }[]; employee: { user: { name: string } };
 };
 type SlotsResponse = { slots: string[] };
 type Filter = "UPCOMING" | "HISTORY" | "ALL";
@@ -51,6 +52,7 @@ export default function MyBookingsPage() {
   const [loadingSlots, setLoadingSlots] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [referenceNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     try {
@@ -67,12 +69,14 @@ export default function MyBookingsPage() {
     } finally { setLoading(false); }
   }, [router]);
 
+  // A carga é reutilizada também após cancelar/remarcar; o callback mantém uma única regra de tratamento.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const upcoming = useMemo(() => items.filter(item =>
-    active(item.status) && new Date(item.endsAt).getTime() >= Date.now()), [items]);
+    active(item.status) && new Date(item.endsAt).getTime() >= referenceNow), [items, referenceNow]);
   const history = useMemo(() => items.filter(item =>
-    !active(item.status) || new Date(item.endsAt).getTime() < Date.now()), [items]);
+    !active(item.status) || new Date(item.endsAt).getTime() < referenceNow), [items, referenceNow]);
   const shown = filter === "UPCOMING" ? upcoming : filter === "HISTORY" ? history : items;
   const sorted = [...shown].sort((a, b) => filter === "UPCOMING"
     ? new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()
@@ -102,7 +106,7 @@ export default function MyBookingsPage() {
     setError(""); setLoadingSlots(item.id);
     try {
       const q = new URLSearchParams({
-        date, serviceId: item.serviceId, membershipId: item.employeeMembershipId,
+        date, serviceIds: (item.services.length ? item.services.map(row => row.service.id) : [item.serviceId]).join(","), membershipId: item.employeeMembershipId,
       });
       const response = await apiJson<SlotsResponse>(`/b/${encodeURIComponent(item.tenant.slug)}/slots?${q}`);
       setSlots(current => ({ ...current, [item.id]: response.slots }));
@@ -138,9 +142,7 @@ export default function MyBookingsPage() {
     <header className="border-b border-[#e7e9e2] bg-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
         <Link href="/" aria-label="Página inicial"><BrandLogo className="h-12 max-w-[205px]"/></Link>
-        <Link href="/painel" className="inline-flex items-center gap-2 rounded-xl border border-[#e7e8e2] px-4 py-2.5 text-xs font-semibold hover:bg-[#f5f6f2]">
-          Minha conta <ArrowRight size={15}/>
-        </Link>
+        <UserMenu/>
       </div>
     </header>
 
@@ -214,14 +216,14 @@ export default function MyBookingsPage() {
         <div className="divide-y divide-[#eff0eb]">
           {sorted.map(item => {
             const isOpen = open === item.id;
-            const canManage = active(item.status) && new Date(item.startsAt).getTime() - Date.now() >= 2 * 60 * 60 * 1000;
+            const canManage = active(item.status) && new Date(item.startsAt).getTime() - referenceNow >= 2 * 60 * 60 * 1000;
             const zone = item.tenant.timezone || "America/Sao_Paulo";
             return <article key={item.id} className="p-5 sm:p-7">
               <div className="flex flex-wrap items-start gap-4">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f1f2ee] text-[#6d7469]"><Scissors size={21}/></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-sm font-bold sm:text-base">{item.service.name}</h3>
+                    <h3 className="text-sm font-bold sm:text-base">{item.services.length ? item.services.map(row => row.service.name).join(" + ") : item.service.name}</h3>
                     <StatusPill status={item.status}/>
                   </div>
                   <p className="mt-1 text-xs font-semibold text-[#7b8176]">{item.tenant.name}</p>
@@ -256,7 +258,7 @@ export default function MyBookingsPage() {
               {isOpen && canManage && <div className="mt-4 rounded-2xl border border-[#e9eae4] bg-[#f8f9f5] p-5">
                 <h4 className="text-xs font-bold">Escolha uma nova data</h4>
                 <p className="mt-1 text-xs text-[#92978f]">Os horários disponíveis são calculados pela barbearia.</p>
-                <input type="date" aria-label={`Nova data para ${item.service.name}`}
+                <input type="date" aria-label={`Nova data para ${item.services.length ? item.services.map(row => row.service.name).join(", ") : item.service.name}`}
                   min={localToday(zone)}
                   value={dates[item.id] ?? ""}
                   onChange={event => void getSlots(item, event.target.value)}

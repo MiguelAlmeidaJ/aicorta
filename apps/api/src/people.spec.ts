@@ -4,6 +4,60 @@ import { test } from "node:test";
 import { ConflictException, ForbiddenException, GoneException, NotFoundException } from "@nestjs/common";
 import { PeopleService } from "./people";
 
+test("busca por e-mail informa se uma conta existente pode ser vinculada", async () => {
+  const people = new PeopleService({ user: { findUnique: async () => ({
+    id: "user-a", name: "Ana", username: "ana", email: "ana@example.com",
+    isActive: true, globalRole: "USER", memberships: [],
+  }) } } as never);
+  const result = await people.lookupEmployee("tenant-a", " ANA@example.com ");
+  assert.equal(result.exists, true);
+  assert.equal(result.canLink, true);
+  assert.equal(result.email, "ana@example.com");
+});
+
+test("conta de cliente existente é promovida e vinculada diretamente como funcionário", async () => {
+  let updateData: unknown;
+  const tx = {
+    membership: {
+      findUnique: async () => ({ id: "member-a", role: "CLIENT", isActive: true }),
+      update: async ({ data }: { data: unknown }) => {
+        updateData = data;
+        return { id: "member-a", role: "EMPLOYEE", isActive: true, user: { name: "Ana" } };
+      },
+    },
+    tenantInvitation: { updateMany: async () => ({ count: 1 }) },
+  };
+  const people = new PeopleService({
+    user: { findUnique: async () => ({ id: "user-a", name: "Ana", isActive: true, globalRole: "USER" }) },
+    $transaction: async (run: (client: typeof tx) => unknown) => run(tx),
+  } as never);
+  const linked = await people.addEmployee("tenant-a", { email: "ana@example.com" });
+  assert.deepEqual(updateData, { role: "EMPLOYEE", isActive: true });
+  assert.equal(linked.role, "EMPLOYEE");
+});
+
+test("administrador cria conta e vínculo de funcionário sem convite", async () => {
+  const operations: string[] = [];
+  const tx = {
+    user: { create: async () => { operations.push("user"); return { id: "user-new" }; } },
+    membership: { create: async () => {
+      operations.push("membership");
+      return { id: "member-new", role: "EMPLOYEE", isActive: true, user: { name: "Bruno" } };
+    } },
+    tenantInvitation: { updateMany: async () => { operations.push("revoke-invites"); return { count: 0 }; } },
+  };
+  const people = new PeopleService({
+    user: { findUnique: async () => null, findFirst: async () => null },
+    $transaction: async (run: (client: typeof tx) => unknown) => run(tx),
+  } as never);
+  const linked = await people.addEmployee("tenant-a", {
+    email: "bruno@example.com", name: "Bruno", username: "bruno",
+    whatsapp: "32999999999", password: "senha-forte-2026",
+  });
+  assert.deepEqual(operations, ["user", "membership", "revoke-invites"]);
+  assert.equal(linked.id, "member-new");
+});
+
 test("convite pode ser emitido antes da criação da conta", async () => {
   let invitationData: unknown;
   const people = new PeopleService({
