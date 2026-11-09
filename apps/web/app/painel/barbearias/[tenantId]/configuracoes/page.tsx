@@ -81,6 +81,11 @@ export default function TenantSettingsPage() {
     if ((value.latitude === null) !== (value.longitude === null)) {
       setError("Selecione a posição completa no mapa."); return;
     }
+    if (value.latitude !== null && (!value.street?.trim() || !value.streetNumber?.trim() ||
+        !value.city?.trim() || !value.state?.trim())) {
+      setError("Preencha rua, número, cidade e UF para publicar a localização no mapa.");
+      return;
+    }
     setSaving(true); setError(""); setMessage("");
     try {
       let saved = original;
