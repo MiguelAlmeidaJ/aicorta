@@ -8,7 +8,7 @@ import { apiJson, mutation } from "../../../../../../lib/api";
 import { fieldClass, PageHeader, Panel, primaryButton, secondaryButton } from "../../../../../../components/dashboard/ui";
 
 type WindowRow = { id?: string; weekday: number; startMinute: number; endMinute: number };
-type Member = { id: string; user: { name: string } };
+type Member = { id: string; isActive: boolean; appearsInAgenda: boolean; user: { name: string } };
 type Service = { id: string; name: string; isActive: boolean };
 type Assigned = { service: Service };
 type TimeOff = { id: string; startsAt: string; endsAt: string; reason: string | null };
@@ -181,7 +181,7 @@ export default function ScheduleConfigurationPage() {
       apiJson<WindowRow[]>(`/tenants/${tenantId}/agenda/hours`),
       apiJson<Member[]>(`/tenants/${tenantId}/employees`),
       apiJson<Service[]>(`/tenants/${tenantId}/services/manage`),
-    ]).then(([hours, people, catalog]) => { if (active) { setShop(fromWindows(hours)); setMembers(people); setServices(catalog.filter(item => item.isActive)); } })
+    ]).then(([hours, people, catalog]) => { if (active) { setShop(fromWindows(hours)); setMembers(people.filter(item => item.isActive && item.appearsInAgenda)); setServices(catalog.filter(item => item.isActive)); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Erro ao carregar configuração"); });
     return () => { active = false; };
   }, [tenantId]);
