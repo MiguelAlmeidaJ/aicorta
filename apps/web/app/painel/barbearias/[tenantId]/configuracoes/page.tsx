@@ -153,16 +153,54 @@ export default function TenantSettingsPage() {
       setError(reason instanceof Error ? reason.message : "Não foi possível localizar o endereço.");
     } finally { setLocating(false); }
   }
+  async function populateAddressFromCoordinates(latitude: number, longitude: number, accuracy?: number) {
+    setLocating(true); setError("");
+    setValue(current => current ? { ...current, latitude, longitude } : current);
+    setMapMessage("Localização obtida. Buscando CEP, rua, bairro, cidade e estado...");
+    try {
+      const address = await apiJson<{
+        street: string; streetNumber: string; neighborhood: string;
+        city: string; state: string; postalCode: string; formattedAddress: string;
+      }>(`/tenants/${tenantId}/settings/reverse-geocode`,
+        mutation("POST", { latitude, longitude }));
+      setValue(current => current ? {
+        ...current, latitude, longitude,
+        street: address.street || null,
+        streetNumber: address.streetNumber || null,
+        neighborhood: address.neighborhood || null,
+        city: address.city || null,
+        state: address.state || null,
+        postalCode: address.postalCode || null,
+      } : current);
+      const missing = [
+        !address.street && "rua",
+        !address.streetNumber && "número",
+        !address.city && "cidade",
+        !address.state && "UF",
+      ].filter(Boolean).join(", ");
+      const uncertain = accuracy !== undefined && accuracy > 50
+        ? " O GPS tem precisão aproximada; confira o ponto no mapa." : "";
+      setMapMessage(missing
+        ? `Endereço parcialmente preenchido. Confira e informe: ${missing}.${uncertain}`
+        : `Endereço preenchido automaticamente. Confira os dados e clique em Salvar alterações.${uncertain}`);
+    } catch {
+      setMapMessage("Pin localizado, mas não foi possível consultar o endereço. Preencha os campos manualmente e salve.");
+      setError("A busca do endereço não está disponível no momento. Suas coordenadas foram mantidas.");
+    } finally { setLocating(false); }
+  }
   function useMyLocation() {
     if (!navigator.geolocation) { setError("Seu navegador não permite obter a localização."); return; }
-    setLocating(true); setError("");
+    setLocating(true); setError(""); setMapMessage("Obtendo a localização do estabelecimento...");
     navigator.geolocation.getCurrentPosition(position => {
-      setValue(current => current ? { ...current, latitude:position.coords.latitude,
-        longitude:position.coords.longitude } : current);
-      setMapMessage("Posição recebida. Confirme o ponto exato no mapa.");
+      void populateAddressFromCoordinates(position.coords.latitude, position.coords.longitude,
+        position.coords.accuracy);
+    }, error => {
+      setError(error.code === 1
+        ? "Permita o acesso à localização nas configurações do navegador ou marque o ponto no mapa."
+        : "Não foi possível obter sua localização. Tente novamente ou selecione o ponto no mapa.");
+      setMapMessage("");
       setLocating(false);
-    }, () => { setError("Permita o acesso à localização no navegador ou marque o ponto manualmente."); setLocating(false); },
-    { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   }
 
   return <>
@@ -231,7 +269,7 @@ export default function TenantSettingsPage() {
               </button>
               <button type="button" disabled={locating} onClick={useMyLocation}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#dfe3dc] px-4 py-3 text-xs font-semibold hover:bg-[#f6f7f3]">
-                <LocateFixed size={16}/> Estou no estabelecimento
+                <LocateFixed size={16}/> {locating ? "Obtendo endereço..." : "Estou no estabelecimento"}
               </button>
             </div>
             <AicortaMap points={value.latitude !== null && value.longitude !== null ?
