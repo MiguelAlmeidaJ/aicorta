@@ -44,13 +44,15 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--brand-gold", brand.gold);
     root.style.setProperty("--brand-silver", brand.silver);
     document.title = `${brand.name} | Gestão de barbearias`;
-    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-      ?? document.createElement("link");
-    if (!icon.parentElement) {
-      icon.rel = "icon";
-      document.head.appendChild(icon);
-    }
-    icon.href = assetUrl(brand.assets.favicon) ?? "/icon.svg";
+    // Remove os ícones registrados pelo Next.js para que o navegador não escolha
+    // uma versão estática/cached no lugar do favicon configurado pelo SYSTEM.
+    document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="shortcut icon"]')
+      .forEach(item => item.remove());
+    const icon = document.createElement("link");
+    icon.rel = "icon";
+    icon.setAttribute("data-aicorta-favicon", "true");
+    icon.href = `/favicon?v=${encodeURIComponent(brand.updatedAt ?? "default")}`;
+    document.head.appendChild(icon);
   }, [brand]);
   return <BrandContext.Provider value={{ brand, reload }}>{children}</BrandContext.Provider>;
 }
