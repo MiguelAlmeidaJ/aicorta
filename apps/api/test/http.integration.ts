@@ -242,6 +242,27 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     employeeCookie = cookies(employeeLogin.headers);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/dashboard`,
       undefined, employeeCookie)).status, 200);
+    const team = await request("GET", `/api/tenants/${tenantA}/employees`, undefined, ownerCookie);
+    assert.equal(team.status, 200, JSON.stringify(team.json));
+    const people = team.json as unknown as Array<{ id: string; role: string; isOwner: boolean; appearsInAgenda: boolean }>;
+    assert.ok(people.some(person => person.id === ownerMembershipA &&
+      person.role === "ADMIN" && person.isOwner && person.appearsInAgenda));
+    const exclude = await request("PATCH",
+      `/api/tenants/${tenantA}/employees/${ownerMembershipA}/agenda`,
+      { appearsInAgenda: false }, ownerCookie);
+    assert.equal(exclude.status, 200, JSON.stringify(exclude.json));
+    const unavailable = await request("GET", `/api/b/${slugA}`);
+    assert.equal(unavailable.status, 200);
+    assert.ok(!(unavailable.json.professionals as Array<{ id: string }>).some(person => person.id === ownerMembershipA));
+    assert.equal((await request("PATCH",
+      `/api/tenants/${tenantA}/employees/${ownerMembershipA}/agenda`,
+      { appearsInAgenda: true }, secondOwnerCookie)).status, 403);
+    const restore = await request("PATCH",
+      `/api/tenants/${tenantA}/employees/${ownerMembershipA}/agenda`,
+      { appearsInAgenda: true }, ownerCookie);
+    assert.equal(restore.status, 200);
+    const availableAgain = await request("GET", `/api/b/${slugA}`);
+    assert.ok((availableAgain.json.professionals as Array<{ id: string }>).some(person => person.id === ownerMembershipA));
   });
 
   await t.test("duas reservas HTTP simultâneas não duplicam o mesmo horário", async () => {
