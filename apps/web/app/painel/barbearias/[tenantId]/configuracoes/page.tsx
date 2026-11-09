@@ -125,8 +125,12 @@ export default function TenantSettingsPage() {
   }
   function changeAddress(patch: Partial<Settings>) {
     if (!value) return;
-    setValue({ ...value, ...patch, latitude: null, longitude: null });
-    setMapMessage("Endereço alterado. Confirme novamente o pin antes de publicar no mapa.");
+    // CEP não muda a posição GPS já confirmada; endereço físico precisa de nova confirmação.
+    const onlyPostalCode = Object.keys(patch).every(key => key === "postalCode");
+    setValue({ ...value, ...patch, ...(!onlyPostalCode && { latitude: null, longitude: null }) });
+    setMapMessage(onlyPostalCode
+      ? "CEP atualizado. Confira os dados e salve as alterações."
+      : "Endereço alterado. Confirme novamente o pin antes de publicar no mapa.");
   }
   function sameCity(a: string, b: string) {
     const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
