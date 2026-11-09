@@ -51,12 +51,12 @@ export default function TenantSettingsPage() {
       setError("Escolha um endereço de pelo menos 3 caracteres, usando letras, números ou hífens.");
       return;
     }
-    const patch: Record<string, string | null> = {};
+    const patch: Record<string, string> = {};
     if (name !== original.name) patch.name = name;
     if (slug !== original.slug) patch.slug = slug;
-    if ((value.city ?? "").trim() !== (original.city ?? "")) patch.city = value.city?.trim() || null;
+    if ((value.city ?? "").trim() !== (original.city ?? "")) patch.city = value.city?.trim() || "";
     if ((value.neighborhood ?? "").trim() !== (original.neighborhood ?? "")) {
-      patch.neighborhood = value.neighborhood?.trim() || null;
+      patch.neighborhood = value.neighborhood?.trim() || "";
     }
     const state = (value.state ?? "").trim().toUpperCase();
     if (state !== (original.state ?? "")) {
@@ -64,7 +64,7 @@ export default function TenantSettingsPage() {
         setError("O estado deve conter duas letras, como MG. Ou deixe em branco.");
         return;
       }
-      patch.state = state || null;
+      patch.state = state;
     }
     setSaving(true); setError(""); setMessage("");
     try {
