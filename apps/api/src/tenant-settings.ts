@@ -5,6 +5,7 @@ import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { imageDimensions } from "./services";
+import { Throttle } from "@nestjs/throttler";
 
 const MAX_COVER_BYTES = 500 * 1024;
 export function parseTenantCover(dataUrl: string) {
@@ -152,6 +153,7 @@ export class TenantSettingsController {
     return this.settings.update(tenantId, dto);
   }
   @Post("geocode")
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   geocode(@Body() dto: LocateTenantDto) { return this.settings.geocode(dto); }
   @Put("cover")
   updateCover(@Param("tenantId") tenantId: string, @Body() dto: UpdateTenantCoverDto) {
