@@ -128,20 +128,24 @@ export class BillingService {
     const startedAt = new Date(dto.billingStartedAt);
     const previous = await this.db.tenant.findUnique({
       where: { id: tenantId },
-      select: { monthlyFeeCents: true, billingDueDay: true, billingStartedAt: true },
+      select: { monthlyFeeCents: true, billingDueDay: true, billingStartedAt: true, timezone: true },
     });
     if (!previous) throw new NotFoundException("Estabelecimento não encontrado");
     // Competências emitidas são imutáveis: alterar vencimento ou início afetaria
     // apenas novos registros e deixaria o contrato inconsistente.
     const issued = await this.db.monthlyFee.count({ where: { tenantId } });
-    if (issued && (dto.billingDueDay !== previous.billingDueDay ||
-        startedAt.getTime() !== previous.billingStartedAt.getTime())) {
+    const sameContractDate = localParts(startedAt, previous.timezone).date ===
+      localParts(previous.billingStartedAt, previous.timezone).date;
+    if (issued && (dto.billingDueDay !== previous.billingDueDay || !sameContractDate)) {
       throw new BadRequestException("Vencimento e início contratual não podem mudar após a emissão de mensalidades");
     }
+    // O formulário envia apenas o dia; não substituir a hora original do contrato
+    // ao alterar exclusivamente o valor mensal.
+    const effectiveStart = issued ? previous.billingStartedAt : startedAt;
     const tenant = await this.db.$transaction(async tx => {
       const updated = await tx.tenant.update({
         where: { id: tenantId },
-        data: { monthlyFeeCents: dto.monthlyFeeCents, billingDueDay: dto.billingDueDay, billingStartedAt: startedAt },
+        data: { monthlyFeeCents: dto.monthlyFeeCents, billingDueDay: dto.billingDueDay, billingStartedAt: effectiveStart },
         select: { id: true, name: true, monthlyFeeCents: true, billingDueDay: true, billingStartedAt: true },
       });
       await tx.billingAudit.create({
@@ -149,7 +153,7 @@ export class BillingService {
           tenantId, actorUserId, action: "CONFIG_UPDATED",
           payload: {
             before: { ...previous, billingStartedAt: previous.billingStartedAt.toISOString() },
-            after: { monthlyFeeCents: dto.monthlyFeeCents, billingDueDay: dto.billingDueDay, billingStartedAt: startedAt.toISOString() },
+            after: { monthlyFeeCents: dto.monthlyFeeCents, billingDueDay: dto.billingDueDay, billingStartedAt: effectiveStart.toISOString() },
           },
         },
       });
