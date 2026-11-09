@@ -9,12 +9,13 @@ const OUTPUT = 640;
 const MAX_OUTPUT_BYTES = 500 * 1024;
 const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 
-export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => void }) {
+export function ProfileImageCrop({ onChange, onCancel }: { onChange: (dataUrl: string) => void; onCancel?: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const previewRef = useRef<HTMLCanvasElement>(null);
   const urlRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [sourceVersion, setSourceVersion] = useState(0);
   const [name, setName] = useState("");
   const [zoom, setZoom] = useState(1);
   const [horizontal, setHorizontal] = useState(0);
@@ -39,7 +40,7 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
     context.clearRect(0, 0, size, size);
     context.drawImage(image, left, top, crop, crop, 0, 0, size, size);
     setApplied(false);
-  }, [ready, zoom, horizontal, vertical]);
+  }, [ready, sourceVersion, zoom, horizontal, vertical]);
 
   function clearSelection() {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -49,6 +50,8 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
     setName("");
     setApplied(false);
     setError("");
+    onChange("");
+    onCancel?.();
   }
 
   function openFile(event: ChangeEvent<HTMLInputElement>) {
@@ -61,6 +64,7 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
     if (file.size > MAX_INPUT_BYTES) {
       setError("A imagem original deve ter até 25 MB."); return;
     }
+    onChange("");
     const url = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
@@ -74,7 +78,7 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
       imgRef.current = image;
       setName(file.name);
       setZoom(1); setHorizontal(0); setVertical(0);
-      setReady(true); setApplied(false); setError("");
+      setReady(true); setSourceVersion(version => version + 1); setApplied(false); setError("");
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
@@ -82,6 +86,10 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
     };
     image.src = url;
   }
+
+  function adjustZoom(value: number) { setZoom(value); setApplied(false); onChange(""); }
+  function adjustHorizontal(value: number) { setHorizontal(value); setApplied(false); onChange(""); }
+  function adjustVertical(value: number) { setVertical(value); setApplied(false); onChange(""); }
 
   function applyCrop() {
     const image = imgRef.current;
@@ -125,20 +133,20 @@ export function ProfileImageCrop({ onChange }: { onChange: (dataUrl: string) => 
       </div>
       <div className="space-y-3">
         <label className="block text-xs font-semibold text-[#505a4e]">Aproximar imagem
-          <input type="range" min="1" max="4" step="0.01" value={zoom} onChange={e => setZoom(Number(e.target.value))}
+          <input type="range" min="1" max="4" step="0.01" value={zoom} onChange={e => adjustZoom(Number(e.target.value))}
             className="mt-2 block w-full accent-[#171916]"/>
         </label>
         <label className="block text-xs font-semibold text-[#505a4e]">Posição horizontal
           <input type="range" min="-100" max="100" step="1" value={horizontal}
-            onChange={e => setHorizontal(Number(e.target.value))} className="mt-2 block w-full accent-[#171916]"/>
+            onChange={e => adjustHorizontal(Number(e.target.value))} className="mt-2 block w-full accent-[#171916]"/>
         </label>
         <label className="block text-xs font-semibold text-[#505a4e]">Posição vertical
           <input type="range" min="-100" max="100" step="1" value={vertical}
-            onChange={e => setVertical(Number(e.target.value))} className="mt-2 block w-full accent-[#171916]"/>
+            onChange={e => adjustVertical(Number(e.target.value))} className="mt-2 block w-full accent-[#171916]"/>
         </label>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => { setZoom(1); setHorizontal(0); setVertical(0); setApplied(false); }}
+        <button type="button" onClick={() => { setZoom(1); setHorizontal(0); setVertical(0); setApplied(false); onChange(""); }}
           className="inline-flex items-center gap-2 rounded-xl border border-[#dfe3dc] bg-white px-4 py-2.5 text-xs font-semibold hover:bg-[#f0f2ed]">
           <RotateCcw size={15}/> Centralizar
         </button>
