@@ -37,7 +37,7 @@ export class AgendaService {
   }
   async professional(tenantId: string, id: string) {
     const member = await this.db.membership.findFirst({
-      where: { id, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      where: { id, tenantId, isActive: true, appearsInAgenda: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
       select: { id: true, userId: true },
     });
     if (!member) throw new NotFoundException("Profissional não encontrado");
@@ -78,10 +78,9 @@ export class AgendaService {
       if (unassigned.length) {
         const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { ownerId: true } });
         const owner = tenant && await tx.membership.findUnique({
-          where: { userId_tenantId: { userId: tenant.ownerId, tenantId } }, select: { id: true, isActive: true },
+          where: { userId_tenantId: { userId: tenant.ownerId, tenantId } }, select: { id: true, isActive: true, appearsInAgenda: true },
         });
-        if (!owner?.isActive) throw new BadRequestException("O proprietário precisa ter um vínculo ativo");
-        await tx.employeeService.createMany({
+        if (owner?.isActive && owner.appearsInAgenda) await tx.employeeService.createMany({
           data: unassigned.map(service => ({ membershipId: owner.id, serviceId: service.id })),
           skipDuplicates: true,
         });
