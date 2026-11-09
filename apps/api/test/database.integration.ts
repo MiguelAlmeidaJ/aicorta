@@ -65,6 +65,22 @@ test("clean migrations install the overlap constraint", async () => {
   ]);
 });
 
+test("clean migrations install financial integrity constraints", async () => {
+  const indexes = await pool.query<{ name: string }>(
+    `SELECT indexname AS name FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = 'cash_session_one_open_per_tenant'`,
+  );
+  assert.deepEqual(indexes.rows.map(row => row.name), ["cash_session_one_open_per_tenant"]);
+  const constraints = await pool.query<{ name: string }>(
+    `SELECT conname AS name FROM pg_constraint
+      WHERE conname IN ('CashSession_non_negative_balances', 'Payment_positive_amount', 'CashMovement_positive_amount')
+      ORDER BY conname`,
+  );
+  assert.deepEqual(constraints.rows.map(row => row.name), [
+    "CashMovement_positive_amount", "CashSession_non_negative_balances", "Payment_positive_amount",
+  ]);
+});
+
 test("PostgreSQL accepts only one concurrent overlapping active appointment", async () => {
   const startsAt = new Date("2035-01-15T12:00:00.000Z");
   const endsAt = new Date("2035-01-15T12:30:00.000Z");

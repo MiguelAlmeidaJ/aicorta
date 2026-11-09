@@ -79,7 +79,7 @@ Identidade (`User`) é global: `username`, `email` e `whatsapp` são únicos no 
 - `GET /api/tenants/:tenantId/appointments` – agenda, apenas equipe.
 - `POST /api/tenants/:tenantId/appointments` – agenda, apenas equipe; cliente deve existir e profissional deve pertencer ao estabelecimento.
 
-Os endpoints de agendamento são a primeira base interna, **não** um fluxo público completo. A verificação de conflito de horários, horário de funcionamento, pagamentos, notificações, recuperação de senha e agendamento público ficam para as próximas entregas antes de produção.
+Os endpoints de agendamento são a primeira base interna, **não** um fluxo público completo. A verificação de conflito de horários, horário de funcionamento, registro financeiro presencial, notificações, recuperação de senha e agendamento público ficam para as próximas entregas antes de produção.
 
 ## Decisões de arquitetura
 
@@ -217,7 +217,7 @@ docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U aicorta -d aicorta < 
 
 **Atenção:** o SQL instala uma exclusão GiST para reservas PENDING e CONFIRMED, bloqueando sobreposições por tenant/profissional. Verifique e corrija conflitos preexistentes antes de executá-lo; falhará se já houver reservas sobrepostas. Não execute duas vezes sem remover/verificar a constraint. Isso ainda não está integrado às migrations versionadas do Prisma — na fase de deploy consolidaremos a migration após revisar o histórico local.
 
-Reservas iniciam como PENDING. Os horários são confirmados somente pelo estabelecimento; futuras integrações poderão notificar o cliente. A disponibilidade pode mudar entre consulta e confirmação e será revalidada no momento da gravação. Ainda faltam testes E2E com concorrência real, verificação do workflow completo em navegadores, política de cancelamento configurável e gateway de pagamentos.
+Reservas iniciam como PENDING. Os horários são confirmados somente pelo estabelecimento; futuras integrações poderão notificar o cliente. A disponibilidade pode mudar entre consulta e confirmação e será revalidada no momento da gravação. Ainda faltam testes E2E com concorrência real, verificação do workflow completo em navegadores e política de cancelamento configurável. O produto não terá gateway de pagamentos.
 
 ## Cadastro de barbearias por convite SYSTEM (Onboarding 1.0)
 
@@ -327,6 +327,39 @@ pnpm --filter @aicorta/api test:e2e
 ## Demo UX 1.0 — agenda e jornada inicial
 
 A agenda interna agora apresenta modos **semana/dia**, filtros por status e profissional, seleção de data, indicadores do período, ações para confirmar/concluir/registrar ausência, carregamento e estados vazios. O endpoint `GET /api/tenants/:tenantId/appointments` aceita `from` e `to` em ISO UTC (ambos obrigatórios juntos, máximo 62 dias) e `take` até 300, mantendo resposta anterior se não houver filtros.
+
+## Patch 07 — atendimentos e comandas
+
+A reserva confirmada pode gerar uma comanda por check-in a partir de 30 minutos antes do horário. A comanda preserva snapshots dos serviços e preços reservados, aceita adicionais manuais, desconto administrativo com motivo, início e encerramento. Cada operação gera um evento de auditoria com autor e data. O encerramento é idempotente e conclui a reserva na mesma transação; o registro do pagamento presencial fica no Patch 08.
+
+Rotas do tenant (ADMIN e EMPLOYEE, salvo indicação):
+
+- `GET /api/tenants/:tenantId/service-orders` e `GET /api/tenants/:tenantId/service-orders/:id`;
+- `POST /api/tenants/:tenantId/appointments/:appointmentId/check-in`;
+- `PATCH /api/tenants/:tenantId/service-orders/:id/start`;
+- `POST` e `DELETE /api/tenants/:tenantId/service-orders/:id/items[/:itemId]`;
+- `PATCH /api/tenants/:tenantId/service-orders/:id/discount` (somente ADMIN);
+- `PATCH /api/tenants/:tenantId/service-orders/:id/close`;
+- `PATCH /api/tenants/:tenantId/service-orders/:id/cancel` (somente ADMIN).
+
+Interface: `/painel/barbearias/:tenantId/atendimentos`. A migration `service_orders` deve ser aplicada antes do deploy da API.
+
+## Patch 08 — caixa e registro de pagamentos presenciais
+
+Cada tenant pode ter somente um caixa aberto. O saldo esperado representa dinheiro físico: abertura, pagamentos em dinheiro, suprimentos, sangrias e estornos em dinheiro. PIX do estabelecimento e cartões cobrados na maquininha do comércio aparecem apenas como registros no extrato e não alteram esse saldo físico. Um pagamento presencial pode ser registrado em até dez partes e estornos preservam o lançamento original.
+
+**Fora de escopo:** o AICorta não gera QR Code ou chave PIX, não captura cartão, não se conecta à maquininha, não chama gateway/adquirente e não movimenta dinheiro. O pagamento acontece integralmente no estabelecimento; o sistema guarda somente o registro operacional informado pela equipe.
+
+Rotas principais:
+
+- `GET /api/tenants/:tenantId/cash-sessions/current` e `GET /cash-sessions`;
+- `POST /api/tenants/:tenantId/cash-sessions/open`;
+- `POST /api/tenants/:tenantId/cash-sessions/current/movements` (ADMIN);
+- `PATCH /api/tenants/:tenantId/cash-sessions/current/close` (ADMIN);
+- `GET` e `POST /api/tenants/:tenantId/service-orders/:id/payments`;
+- `PATCH /api/tenants/:tenantId/payments/:id/void` (ADMIN).
+
+Interface: `/painel/barbearias/:tenantId/caixa` e painel de pagamentos na comanda. A migration `cash_and_payments` deve ser aplicada depois de `service_orders`.
 
 O painel da barbearia mostra um **checklist do primeiro uso** somente para ADMIN enquanto faltar cadastro de serviços, horários gerais, jornadas ou serviços atribuídos. A página de reservas públicas foi redesenhada com escolha visual de serviços e profissionais, datas rápidas, resumo de reserva e mensagens claras de indisponibilidade.
 

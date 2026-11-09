@@ -135,7 +135,9 @@ export class BookingService {
       if (!current || activeServices !== serviceIds.length) throw new BadRequestException("Profissional ou serviço inativo");
       return tx.appointment.create({ data: { tenantId, serviceId: service.id,
         employeeMembershipId: employee.id, clientId: client.id, startsAt, endsAt,
-        priceCents, notes: dto.notes, services: { create: serviceIds.map(serviceId => ({ serviceId })) } } });
+        priceCents, notes: dto.notes, services: { create: orderedServices.map(item => ({
+          serviceId: item.id, nameSnapshot: item.name, priceCentsSnapshot: item.priceCents,
+        })) } } });
     }); } catch (error) { translateDbConflict(error); }
   }
   async mine(userId: string) {

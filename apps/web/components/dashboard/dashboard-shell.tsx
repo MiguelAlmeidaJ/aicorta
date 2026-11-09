@@ -4,8 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
-  ImageIcon, LayoutDashboard, Menu, Scissors, Settings2, ShieldCheck,
-  UsersRound, UserRoundPlus, X, type LucideIcon,
+  ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
+  UsersRound, UserRoundPlus, WalletCards, X, type LucideIcon,
 } from "lucide-react";
 import { apiJson } from "../../lib/api";
 import { BrandLogo } from "../brand/brand-provider";
@@ -62,6 +62,8 @@ export function DashboardShell({ children, mode, tenantId }: {
   const tenantItems: Item[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboard, exact: true },
     { title: "Agenda", href: base + "/agenda", icon: CalendarDays },
+    { title: "Atendimentos", href: base + "/atendimentos", icon: ListChecks },
+    { title: "Caixa", href: base + "/caixa", icon: WalletCards },
     { title: "Serviços", href: base + "/servicos", icon: Scissors },
     { title: "Equipe", href: base + "/equipe", icon: UsersRound },
     { title: "Clientes", href: base + "/clientes", icon: ClipboardList },

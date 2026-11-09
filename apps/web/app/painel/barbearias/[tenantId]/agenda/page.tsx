@@ -66,18 +66,19 @@ export default function AgendaPage() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [professional, setProfessional] = useState("ALL");
   const [status, setStatus] = useState("ALL");
-  const [loading, setLoading] = useState(true);
+  const [loadedRequest, setLoadedRequest] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
 
   const weekStart = firstWeekday(day);
+  const requestKey = `${tenantId}:${weekStart}:${reload}`;
+  const loading = loadedRequest !== requestKey;
   const week = useMemo(() => Array.from({ length: 7 }, (_, i) => plusDays(weekStart, i)), [weekStart]);
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError("");
     const from = new Date(plusDays(weekStart, -1) + "T00:00:00Z").toISOString();
     const to = new Date(plusDays(weekStart, 9) + "T00:00:00Z").toISOString();
     const q = new URLSearchParams({ from, to, take: "300" });
@@ -90,9 +91,9 @@ export default function AgendaPage() {
       setTimezone(summary.tenant.timezone);
     }).catch(err => {
       if (active) setError(err instanceof Error ? err.message : "Não foi possível carregar a agenda.");
-    }).finally(() => { if (active) setLoading(false); });
+    }).finally(() => { if (active) setLoadedRequest(requestKey); });
     return () => { active = false; };
-  }, [tenantId, weekStart, reload]);
+  }, [tenantId, weekStart, requestKey]);
 
   const professionals = useMemo(() => {
     const byId = new Map<string, string>();

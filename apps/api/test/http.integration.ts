@@ -26,12 +26,15 @@ let ownerCookie = "";
 let secondOwnerCookie = "";
 let clientCookie = "";
 let otherClientCookie = "";
+let employeeCookie = "";
 let tenantA = "";
 let tenantB = "";
 let slugA = "";
 let ownerMembershipA = "";
 let serviceId = "";
 let clientId = "";
+let serviceOrderId = "";
+let serviceOrderTotal = 0;
 
 type JsonValue = Record<string, unknown>;
 async function request(method: string, path: string, body?: object, cookie?: string) {
@@ -234,8 +237,9 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       identifier: `employee${suffix}`, password,
     });
     assert.equal(employeeLogin.status, 201);
+    employeeCookie = cookies(employeeLogin.headers);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/dashboard`,
-      undefined, cookies(employeeLogin.headers))).status, 200);
+      undefined, employeeCookie)).status, 200);
   });
 
   await t.test("duas reservas HTTP simultâneas não duplicam o mesmo horário", async () => {
@@ -264,6 +268,12 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     const confirmed = await request("PATCH",
       `/api/tenants/${tenantA}/appointments/${bookingId}/confirm`, undefined, ownerCookie);
     assert.equal(confirmed.status, 200);
+    const forbiddenCancel = await request("PATCH", `/api/b/${slugA}/bookings/${bookingId}/cancel`,
+      undefined, acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
+    assert.equal(forbiddenCancel.status, 403);
+    const forbiddenReschedule = await request("PATCH", `/api/b/${slugA}/bookings/${bookingId}/reschedule`,
+      { startsAt: slots[0] }, acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
+    assert.equal(forbiddenReschedule.status, 403);
     const mine = await request("GET", "/api/my/bookings", undefined, acceptedCookie);
     assert.equal(mine.status, 200);
     const myBookings = mine.json as unknown as { tenant: { timezone: string }; id: string }[];
@@ -275,6 +285,125 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     const reuse = await request("POST", `/api/b/${slugA}/bookings`, payload,
       acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
     assert.equal(reuse.status, 201);
+    const reusedId = String(reuse.json.id);
+    const reusedCookie = acceptedCookie === clientCookie ? otherClientCookie : clientCookie;
+    const nextDay = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    const nextAvailability = await request("GET",
+      `/api/b/${slugA}/slots?serviceId=${serviceId}&membershipId=${ownerMembershipA}&date=${nextDay}`);
+    const nextSlots = nextAvailability.json.slots as string[];
+    assert.ok(nextSlots.length > 0);
+    const rescheduled = await request("PATCH", `/api/b/${slugA}/bookings/${reusedId}/reschedule`,
+      { startsAt: nextSlots[0] }, reusedCookie);
+    assert.equal(rescheduled.status, 200, JSON.stringify(rescheduled.json));
+    assert.equal(rescheduled.json.status, "PENDING");
+    assert.equal(rescheduled.json.startsAt, nextSlots[0]);
+  });
+
+  await t.test("check-in, adicionais, desconto e encerramento preservam historico", async () => {
+    const appointment = await db.appointment.findFirstOrThrow({
+      where: { tenantId: tenantA, status: "PENDING" }, orderBy: { createdAt: "desc" },
+    });
+    await db.appointment.update({ where: { id: appointment.id }, data: {
+      status: "CONFIRMED", startsAt: new Date(Date.now() - 10 * 60_000),
+      endsAt: new Date(Date.now() + 20 * 60_000),
+    } });
+    const checkedIn = await request("POST",
+      `/api/tenants/${tenantA}/appointments/${appointment.id}/check-in`, undefined, ownerCookie);
+    assert.equal(checkedIn.status, 201, JSON.stringify(checkedIn.json));
+    const orderId = String(checkedIn.json.id);
+    serviceOrderId = orderId;
+    const duplicate = await request("POST",
+      `/api/tenants/${tenantA}/appointments/${appointment.id}/check-in`, undefined, ownerCookie);
+    assert.equal(duplicate.status, 201);
+    assert.equal(duplicate.json.id, orderId);
+    assert.equal((await request("PATCH", `/api/tenants/${tenantA}/service-orders/${orderId}/start`,
+      undefined, ownerCookie)).status, 200);
+    const added = await request("POST", `/api/tenants/${tenantA}/service-orders/${orderId}/items`, {
+      description: "Hidratacao", quantity: 1, unitPriceCents: 1500,
+    }, ownerCookie);
+    assert.equal(added.status, 201, JSON.stringify(added.json));
+    const discounted = await request("PATCH", `/api/tenants/${tenantA}/service-orders/${orderId}/discount`, {
+      discountCents: 500, reason: "Cortesia autorizada",
+    }, ownerCookie);
+    assert.equal(discounted.status, 200, JSON.stringify(discounted.json));
+    assert.equal(Number(discounted.json.totalCents), Number(discounted.json.subtotalCents) - 500);
+    const closed = await request("PATCH", `/api/tenants/${tenantA}/service-orders/${orderId}/close`,
+      undefined, ownerCookie);
+    assert.equal(closed.status, 200, JSON.stringify(closed.json));
+    assert.equal(closed.json.status, "CLOSED");
+    serviceOrderTotal = Number(closed.json.totalCents);
+    const events = closed.json.events as { type: string }[];
+    assert.deepEqual(events.map(event => event.type), [
+      "CHECKED_IN", "STARTED", "ITEM_ADDED", "DISCOUNT_APPLIED", "CLOSED",
+    ]);
+    assert.equal((await db.appointment.findUniqueOrThrow({ where: { id: appointment.id } })).status, "COMPLETED");
+    assert.equal((await request("GET", `/api/tenants/${tenantB}/service-orders/${orderId}`,
+      undefined, secondOwnerCookie)).status, 400);
+  });
+
+  await t.test("caixa recebe pagamento dividido, movimentos, estorno e fechamento", async () => {
+    const opened = await request("POST", `/api/tenants/${tenantA}/cash-sessions/open`, {
+      openingBalanceCents: 10000, notes: "Abertura E2E",
+    }, ownerCookie);
+    assert.equal(opened.status, 201, JSON.stringify(opened.json));
+    assert.equal(opened.json.expectedBalanceCents, 10000);
+    assert.equal((await request("POST", `/api/tenants/${tenantA}/cash-sessions/open`, {
+      openingBalanceCents: 0,
+    }, ownerCookie)).status, 409);
+    assert.equal((await request("POST", `/api/tenants/${tenantA}/cash-sessions/current/movements`, {
+      type: "SUPPLY", amountCents: 100, reason: "Sem permissao",
+    }, employeeCookie)).status, 403);
+
+    const cashPart = Math.min(2000, serviceOrderTotal);
+    const otherPart = serviceOrderTotal - cashPart;
+    const parts = [
+      { method: "CASH", amountCents: cashPart },
+      ...(otherPart ? [{ method: "PIX", amountCents: otherPart, reference: "pix-e2e" }] : []),
+    ];
+    const received = await request("POST",
+      `/api/tenants/${tenantA}/service-orders/${serviceOrderId}/payments`, { parts }, ownerCookie);
+    assert.equal(received.status, 201, JSON.stringify(received.json));
+    assert.equal(received.json.remainingCents, 0);
+    assert.equal((await request("POST",
+      `/api/tenants/${tenantA}/service-orders/${serviceOrderId}/payments`, {
+        parts: [{ method: "PIX", amountCents: 1 }],
+      }, ownerCookie)).status, 400);
+
+    const supplied = await request("POST", `/api/tenants/${tenantA}/cash-sessions/current/movements`, {
+      type: "SUPPLY", amountCents: 1000, reason: "Reforco para troco",
+    }, ownerCookie);
+    assert.equal(supplied.status, 201, JSON.stringify(supplied.json));
+    const withdrawn = await request("POST", `/api/tenants/${tenantA}/cash-sessions/current/movements`, {
+      type: "WITHDRAWAL", amountCents: 500, reason: "Sangria preventiva",
+    }, ownerCookie);
+    assert.equal(withdrawn.status, 201, JSON.stringify(withdrawn.json));
+    assert.equal(withdrawn.json.expectedBalanceCents, 10000 + cashPart + 1000 - 500);
+
+    const paymentRows = received.json.payments as { id: string; method: string }[];
+    const nonCash = paymentRows.find(item => item.method !== "CASH");
+    if (nonCash) {
+      const voided = await request("PATCH", `/api/tenants/${tenantA}/payments/${nonCash.id}/void`, {
+        reason: "Estorno E2E",
+      }, ownerCookie);
+      assert.equal(voided.status, 200, JSON.stringify(voided.json));
+      assert.equal(voided.json.remainingCents, otherPart);
+      const repaid = await request("POST",
+        `/api/tenants/${tenantA}/service-orders/${serviceOrderId}/payments`, {
+          parts: [{ method: "PIX", amountCents: otherPart, reference: "pix-e2e-2" }],
+        }, ownerCookie);
+      assert.equal(repaid.status, 201, JSON.stringify(repaid.json));
+      assert.equal(repaid.json.remainingCents, 0);
+    }
+
+    const expected = 10000 + cashPart + 1000 - 500;
+    const closed = await request("PATCH", `/api/tenants/${tenantA}/cash-sessions/current/close`, {
+      countedBalanceCents: expected - 100, notes: "Diferenca E2E",
+    }, ownerCookie);
+    assert.equal(closed.status, 200, JSON.stringify(closed.json));
+    assert.equal(closed.json.expectedBalanceCents, expected);
+    assert.equal(closed.json.differenceCents, -100);
+    assert.equal((await request("GET", `/api/tenants/${tenantA}/cash-sessions/current`,
+      undefined, ownerCookie)).json, null);
   });
 
   await t.test("refresh rotativo não pode ser reutilizado", async () => {

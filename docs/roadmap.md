@@ -1,5 +1,7 @@
 # Roadmap beta
 
+O checklist detalhado do ciclo operacional esta em [`patches-operacionais.md`](./patches-operacionais.md).
+
 - [x] Monorepo pnpm + Nest + Next + Prisma + Postgres
 - [x] Schema inicial de usuários, tenants, memberships, serviços e agendamentos
 - [x] Cadastro de estabelecimento e autenticação por 3 identificadores (API)
@@ -25,7 +27,8 @@
 - [ ] Notificações WhatsApp/e-mail e fila de tarefas
 - [x] Dashboard SYSTEM 1.0 e painel da barbearia com sidebar responsiva, Tailwind v4 e dados reais
 - [ ] Relatórios financeiros, paginação da agenda e melhorias de gestão de equipe
-- [ ] Pagamentos, assinaturas SaaS e relatórios
+- [x] Registro operacional de pagamentos presenciais e caixa (sem gateway ou processamento financeiro)
+- [ ] Cobrança da assinatura SaaS e relatórios
 - [x] Branding 1.0: identidade do manual oficial e configurações de logo/favicon/cores por SYSTEM
 - [x] Branding UI 1.1: prévias amplas, crop visual de margens nas logos e sidebar refinada
 - [ ] Licenciamento comercial das fontes especiais e CDN para ativos de marca

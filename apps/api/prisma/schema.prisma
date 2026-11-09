@@ -32,6 +32,54 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum ServiceOrderStatus {
+  CHECKED_IN
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
+enum ServiceOrderItemSource {
+  APPOINTMENT
+  MANUAL
+}
+
+enum ServiceOrderEventType {
+  CHECKED_IN
+  STARTED
+  ITEM_ADDED
+  ITEM_REMOVED
+  DISCOUNT_APPLIED
+  CLOSED
+  CANCELLED
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  OPENING_BALANCE
+  PAYMENT
+  WITHDRAWAL
+  SUPPLY
+  REFUND
+}
+
+enum PaymentMethod {
+  CASH
+  PIX
+  DEBIT_CARD
+  CREDIT_CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  CONFIRMED
+  VOIDED
+}
+
 model User {
   id                 String             @id @default(uuid()) @db.Uuid
   name               String
@@ -51,6 +99,14 @@ model User {
   memberships        Membership[]
   ownedTenants       Tenant[]           @relation("TenantOwner")
   clientBookings     Appointment[]      @relation("BookingClient")
+  clientServiceOrders ServiceOrder[]    @relation("ServiceOrderClient")
+  createdServiceOrders ServiceOrder[]   @relation("ServiceOrderCreator")
+  serviceOrderEvents ServiceOrderEvent[] @relation("ServiceOrderEventActor")
+  openedCashSessions CashSession[]       @relation("CashSessionOpenedBy")
+  closedCashSessions CashSession[]       @relation("CashSessionClosedBy")
+  cashMovements      CashMovement[]      @relation("CashMovementActor")
+  receivedPayments   Payment[]           @relation("PaymentReceivedBy")
+  voidedPayments     Payment[]           @relation("PaymentVoidedBy")
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -76,6 +132,10 @@ model Tenant {
   services            Service[]
   appointments        Appointment[]
   appointmentServices AppointmentService[]
+  serviceOrders       ServiceOrder[]
+  cashSessions       CashSession[]
+  cashMovements      CashMovement[]
+  payments           Payment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -94,6 +154,7 @@ model Membership {
   workWindows      WorkWindow[]
   timeOffs         TimeOff[]
   employeeBookings Appointment[]     @relation("BookingEmployee")
+  employeeServiceOrders ServiceOrder[] @relation("ServiceOrderEmployee")
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -118,6 +179,7 @@ model Service {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   appointmentServices AppointmentService[]
+  serviceOrderItems   ServiceOrderItem[]
 
   @@unique([id, tenantId])
   @@index([tenantId, isActive])
@@ -148,6 +210,7 @@ model Appointment {
   services             AppointmentService[]
   employee             Membership           @relation("BookingEmployee", fields: [employeeMembershipId, tenantId], references: [id, tenantId])
   client               User                 @relation("BookingClient", fields: [clientId], references: [id])
+  serviceOrder         ServiceOrder?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -156,9 +219,149 @@ model Appointment {
   @@index([clientId, startsAt])
 }
 
+model ServiceOrder {
+  id                   String             @id @default(uuid()) @db.Uuid
+  tenantId             String             @db.Uuid
+  appointmentId        String             @unique @db.Uuid
+  employeeMembershipId String             @db.Uuid
+  clientId             String             @db.Uuid
+  createdById          String             @db.Uuid
+  status               ServiceOrderStatus @default(CHECKED_IN)
+  subtotalCents        Int                @default(0)
+  discountCents        Int                @default(0)
+  discountReason       String?
+  totalCents           Int                @default(0)
+  checkedInAt          DateTime           @default(now())
+  startedAt            DateTime?
+  closedAt             DateTime?
+  cancelledAt          DateTime?
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointment          Appointment        @relation(fields: [appointmentId], references: [id])
+  employee             Membership         @relation("ServiceOrderEmployee", fields: [employeeMembershipId, tenantId], references: [id, tenantId])
+  client               User               @relation("ServiceOrderClient", fields: [clientId], references: [id])
+  createdBy            User               @relation("ServiceOrderCreator", fields: [createdById], references: [id])
+  items                ServiceOrderItem[]
+  events               ServiceOrderEvent[]
+  payments             Payment[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, clientId, createdAt])
+  @@index([tenantId, employeeMembershipId, createdAt])
+}
+
+model ServiceOrderItem {
+  id             String                 @id @default(uuid()) @db.Uuid
+  serviceOrderId String                 @db.Uuid
+  tenantId       String                 @db.Uuid
+  serviceId      String?                @db.Uuid
+  source         ServiceOrderItemSource
+  description    String
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+  serviceOrder   ServiceOrder           @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  service        Service?               @relation(fields: [serviceId], references: [id])
+  createdAt      DateTime               @default(now())
+
+  @@index([serviceOrderId])
+  @@index([tenantId, serviceId])
+}
+
+model ServiceOrderEvent {
+  id             String                @id @default(uuid()) @db.Uuid
+  serviceOrderId String                @db.Uuid
+  tenantId       String                @db.Uuid
+  actorUserId    String                @db.Uuid
+  type           ServiceOrderEventType
+  payload        Json?
+  serviceOrder   ServiceOrder          @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  actor           User                  @relation("ServiceOrderEventActor", fields: [actorUserId], references: [id])
+  createdAt       DateTime              @default(now())
+
+  @@index([serviceOrderId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model CashSession {
+  id                   String            @id @default(uuid()) @db.Uuid
+  tenantId             String            @db.Uuid
+  openedById           String            @db.Uuid
+  closedById           String?           @db.Uuid
+  status               CashSessionStatus @default(OPEN)
+  openingBalanceCents  Int
+  expectedBalanceCents Int
+  countedBalanceCents  Int?
+  differenceCents      Int?
+  openingNotes         String?
+  closingNotes         String?
+  openedAt             DateTime          @default(now())
+  closedAt             DateTime?
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  openedBy             User              @relation("CashSessionOpenedBy", fields: [openedById], references: [id])
+  closedBy             User?             @relation("CashSessionClosedBy", fields: [closedById], references: [id])
+  movements            CashMovement[]
+  payments             Payment[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status, openedAt])
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  serviceOrderId String        @db.Uuid
+  cashSessionId  String        @db.Uuid
+  receivedById   String        @db.Uuid
+  voidedById     String?       @db.Uuid
+  method         PaymentMethod
+  status         PaymentStatus @default(CONFIRMED)
+  amountCents    Int
+  reference      String?
+  voidReason     String?
+  voidedAt       DateTime?
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  serviceOrder   ServiceOrder  @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId])
+  cashSession    CashSession   @relation(fields: [cashSessionId, tenantId], references: [id, tenantId])
+  receivedBy     User          @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  voidedBy       User?         @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
+  movements      CashMovement[]
+  createdAt      DateTime      @default(now())
+
+  @@unique([id, tenantId])
+  @@index([tenantId, serviceOrderId, status])
+  @@index([tenantId, cashSessionId, createdAt])
+}
+
+model CashMovement {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  cashSessionId String           @db.Uuid
+  paymentId     String?          @db.Uuid
+  actorUserId   String           @db.Uuid
+  type          CashMovementType
+  amountCents   Int
+  reason        String?
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashSession   CashSession      @relation(fields: [cashSessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  payment       Payment?         @relation(fields: [paymentId, tenantId], references: [id, tenantId])
+  actor         User             @relation("CashMovementActor", fields: [actorUserId], references: [id])
+  createdAt     DateTime         @default(now())
+
+  @@index([cashSessionId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@index([paymentId])
+}
+
 model AppointmentService {
   appointmentId String      @db.Uuid
   serviceId     String      @db.Uuid
+  nameSnapshot  String?
+  priceCentsSnapshot Int?
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   service       Service     @relation(fields: [serviceId], references: [id])
   tenant        Tenant?     @relation(fields: [tenantId], references: [id])

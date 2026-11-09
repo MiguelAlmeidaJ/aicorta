@@ -16,7 +16,7 @@ function InviteRegistration() {
   const router = useRouter();
   const token = useSearchParams().get("token") ?? "";
   const [valid, setValid] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(Boolean(token));
   const [status, setStatus] = useState("");
   const [username, setUsername] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -24,7 +24,7 @@ function InviteRegistration() {
 
   useEffect(() => {
     let active = true;
-    if (!token) { setChecking(false); return; }
+    if (!token) return;
     fetch(`${API}/auth/owner-invites/verify?token=${encodeURIComponent(token)}`)
       .then(async response => {
         if (!response.ok) throw new Error("Convite inválido, expirado ou já utilizado.");

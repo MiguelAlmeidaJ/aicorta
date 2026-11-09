@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 import {
   ArrowUpRight, Check, CheckCircle2, ChevronRight, CloudUpload,
   Eye, ImageIcon, Palette, RotateCcw, Save,
@@ -50,7 +50,16 @@ function Artwork({ src, alt, className = "" }: { src: string | null; alt: string
 
 export default function SystemBrandSettings() {
   const { brand, reload } = useBrand();
-  const [draft, setDraft] = useState<BrandConfig>(defaultBrand);
+  const revision = [brand.name, brand.black, brand.navy, brand.gold, brand.silver,
+    brand.assets.logo, brand.assets.dark, brand.assets.favicon].join(":");
+  return <SystemBrandSettingsEditor key={revision} brand={brand} reload={reload}/>;
+}
+
+function SystemBrandSettingsEditor({ brand, reload }: {
+  brand: BrandConfig;
+  reload: () => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<BrandConfig>(brand);
   const [selected, setSelected] = useState<Partial<Record<Slot, string>>>({});
   const [fileNames, setFileNames] = useState<Partial<Record<Slot, string>>>({});
   const [notice, setNotice] = useState("");
@@ -58,8 +67,6 @@ export default function SystemBrandSettings() {
   const [saving, setSaving] = useState(false);
   const [savingSlot, setSavingSlot] = useState<Slot | null>(null);
   const [previewMode, setPreviewMode] = useState<"light" | "dark">("dark");
-
-  useEffect(() => { setDraft(brand); }, [brand]);
 
   const colorsChanged = draft.name !== brand.name ||
     swatches.some(s => draft[s.key].toLowerCase() !== brand[s.key].toLowerCase());
