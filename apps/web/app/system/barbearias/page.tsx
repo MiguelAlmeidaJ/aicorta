@@ -110,7 +110,7 @@ export default function SystemTenants() {
         </table>
       </div>}
     </Panel>
-    <p className="mt-5 text-xs text-[#989c94]">O dia de vencimento é um dado para o financeiro. A suspensão de acesso é manual nesta versão.</p>
+    <p className="mt-5 text-xs text-[#989c94]">A suspensão pode ser manual ou automática por mensalidade vencida. Pagamentos são confirmados pelo SYSTEM na página Mensalidades.</p>
     {createOpen ? <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button type="button" aria-label="Fechar cadastro" className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={closeCreate}/>
       <section role="dialog" aria-modal="true" aria-labelledby="new-tenant-title"

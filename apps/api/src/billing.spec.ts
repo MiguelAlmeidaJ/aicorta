@@ -25,3 +25,25 @@ test("configuração aceita valor zero e rejeita vencimento fora de 1 a 31", asy
   dto.billingDueDay = 31;
   assert.equal((await validate(dto)).length, 0);
 });
+
+// A confirmação e os relatórios devem permanecer corretos com concorrência e histórico extenso.
+import { BillingService } from "./billing";
+
+test("marcar pago em paralelo grava uma única confirmação", async () => {
+  let status = "PENDING";
+  let auditCount = 0;
+  const db = {
+    monthlyFee: {
+      findUnique: async () => ({ id: "fee-1", tenantId: "tenant-1", status, amountCents: 1000 }),
+      findUniqueOrThrow: async () => ({ id: "fee-1", status }),
+      updateMany: async () => { if (status !== "PENDING") return { count: 0 }; status = "PAID"; return { count: 1 }; },
+    },
+    billingAudit: { create: async () => { auditCount++; } },
+    $transaction: async (cb: (tx: unknown) => Promise<void>) => cb(db),
+  };
+  const billing = new BillingService(db as never);
+  billing.refreshTenantState = async () => ({ overdue: false, operational: true });
+  await Promise.all([billing.markPaid("fee-1", "system-1"), billing.markPaid("fee-1", "system-2")]);
+  assert.equal(auditCount, 1);
+  assert.equal(status, "PAID");
+});

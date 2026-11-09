@@ -167,3 +167,13 @@ Estado: **nao iniciado**. Recuperacao de senha por SMTP nao conta como mensagem 
 4. Executar o Patch 10 sobre os eventos operacionais consolidados.
 5. Construir Patch 11 sobre pagamentos presenciais, evitando relatorios baseados apenas em status de agenda.
 6. Adicionar Patch 12 com outbox transacional para nao perder mensagens em falhas ou deploys.
+
+## Patch 09.1 - Correções P0/P1 de faturamento e acesso
+
+- [x] Confirmação de mensalidade com atualização condicional atômica e auditoria única
+- [x] Totais de mensalidades calculados no banco, independentemente das 24 exibidas
+- [x] Alteração de vencimento e início bloqueada após emissão; reajuste de valor vale somente para competências futuras
+- [x] Dashboard distingue serviços concluídos de pagamentos presenciais registrados
+- [x] Agenda e comandas limitadas ao próprio profissional no papel EMPLOYEE
+- [x] Texto SYSTEM atualizado para suspensão automática e manual
+- [ ] Homologação manual dos novos fluxos e execução verde da CI deste commit

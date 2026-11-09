@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable,
+  BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, Injectable,
   Param, Patch, Post, Query, Req, UseGuards,
 } from "@nestjs/common";
 import { Type } from "class-transformer";
@@ -51,9 +51,14 @@ export class ServiceOrderService {
     };
   }
 
-  list(tenantId: string, query: ServiceOrderQueryDto = {}) {
+  async list(tenantId: string, actorUserId: string, query: ServiceOrderQueryDto = {}) {
+    const actor = await this.db.membership.findUniqueOrThrow({
+      where: { userId_tenantId: { userId: actorUserId, tenantId } },
+      select: { id: true, role: true },
+    });
     return this.db.serviceOrder.findMany({
-      where: { tenantId, ...(query.status && { status: query.status }) },
+      where: { tenantId, ...(actor.role === "EMPLOYEE" && { employeeMembershipId: actor.id }),
+        ...(query.status && { status: query.status }) },
       include: {
         client: { select: { id: true, name: true } },
         employee: { select: { id: true, user: { select: { name: true } } } },
@@ -65,7 +70,8 @@ export class ServiceOrderService {
     });
   }
 
-  async detail(tenantId: string, id: string) {
+  async detail(tenantId: string, id: string, actorUserId?: string) {
+    if (actorUserId) await this.assertOwnOrder(tenantId, id, actorUserId);
     const order = await this.db.serviceOrder.findFirst({
       where: this.detailWhere(tenantId, id), include: this.includeDetail(),
     });
@@ -73,7 +79,29 @@ export class ServiceOrderService {
     return order;
   }
 
+  private async assertOwnOrder(tenantId: string, orderId: string, actorUserId: string) {
+    const actor = await this.db.membership.findUniqueOrThrow({
+      where: { userId_tenantId: { userId: actorUserId, tenantId } },
+      select: { id: true, role: true },
+    });
+    if (actor.role !== "EMPLOYEE") return;
+    const owned = await this.db.serviceOrder.count({
+      where: { id: orderId, tenantId, employeeMembershipId: actor.id },
+    });
+    if (!owned) throw new ForbiddenException("Atendimento de outro profissional");
+  }
+
   async checkIn(tenantId: string, appointmentId: string, actorUserId: string) {
+    const actor = await this.db.membership.findUniqueOrThrow({
+      where: { userId_tenantId: { userId: actorUserId, tenantId } },
+      select: { id: true, role: true },
+    });
+    if (actor.role === "EMPLOYEE") {
+      const owned = await this.db.appointment.count({
+        where: { id: appointmentId, tenantId, employeeMembershipId: actor.id },
+      });
+      if (!owned) throw new ForbiddenException("Agendamento de outro profissional");
+    }
     const existing = await this.db.serviceOrder.findFirst({
       where: { tenantId, appointmentId }, include: this.includeDetail(),
     });
@@ -133,6 +161,7 @@ export class ServiceOrderService {
   }
 
   async start(tenantId: string, id: string, actorUserId: string) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const updated = await tx.serviceOrder.updateMany({
@@ -148,6 +177,7 @@ export class ServiceOrderService {
   }
 
   async addItem(tenantId: string, id: string, actorUserId: string, dto: AddServiceOrderItemDto) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const order = await tx.serviceOrder.findFirst({ where: { id, tenantId, status: { in: [...openStatuses] } } });
@@ -176,6 +206,7 @@ export class ServiceOrderService {
   }
 
   async removeItem(tenantId: string, id: string, itemId: string, actorUserId: string) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const order = await tx.serviceOrder.findFirst({ where: { id, tenantId, status: { in: [...openStatuses] } } });
@@ -200,6 +231,7 @@ export class ServiceOrderService {
   }
 
   async applyDiscount(tenantId: string, id: string, actorUserId: string, dto: ApplyDiscountDto) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const order = await tx.serviceOrder.findFirst({ where: { id, tenantId, status: { in: [...openStatuses] } } });
@@ -218,6 +250,7 @@ export class ServiceOrderService {
   }
 
   async close(tenantId: string, id: string, actorUserId: string) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const order = await tx.serviceOrder.findFirst({ where: { id, tenantId } });
@@ -248,6 +281,7 @@ export class ServiceOrderService {
   }
 
   async cancel(tenantId: string, id: string, actorUserId: string) {
+    await this.assertOwnOrder(tenantId, id, actorUserId);
     await this.db.$transaction(async tx => {
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":service-order:" + id}, 0))::text`;
       const order = await tx.serviceOrder.findFirst({ where: { id, tenantId, status: { in: [...openStatuses] } } });
@@ -271,13 +305,14 @@ export class ServiceOrderController {
   constructor(private readonly orders: ServiceOrderService) {}
 
   @TenantRoles("ADMIN", "EMPLOYEE") @Get("service-orders")
-  list(@Param("tenantId") tenantId: string, @Query() query: ServiceOrderQueryDto) {
-    return this.orders.list(tenantId, query);
+  list(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }, @Query() query: ServiceOrderQueryDto) {
+    return this.orders.list(tenantId, req.user.id, query);
   }
 
   @TenantRoles("ADMIN", "EMPLOYEE") @Get("service-orders/:id")
-  detail(@Param("tenantId") tenantId: string, @Param("id") id: string) {
-    return this.orders.detail(tenantId, id);
+  detail(@Param("tenantId") tenantId: string, @Param("id") id: string,
+    @Req() req: { user: { id: string } }) {
+    return this.orders.detail(tenantId, id, req.user.id);
   }
 
   @TenantRoles("ADMIN", "EMPLOYEE") @Post("appointments/:appointmentId/check-in")

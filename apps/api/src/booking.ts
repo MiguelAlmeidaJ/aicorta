@@ -59,6 +59,10 @@ export class BookingService {
 
   async appointments(tenantId: string, userId: string, query: AppointmentQueryDto = {}) {
     await this.assertTeamAccess(tenantId, userId);
+    const actor = await this.db.membership.findUniqueOrThrow({
+      where: { userId_tenantId: { userId, tenantId } },
+      select: { id: true, role: true },
+    });
     if (Boolean(query.from) !== Boolean(query.to)) {
       throw new BadRequestException("Informe from e to juntos");
     }
@@ -70,6 +74,7 @@ export class BookingService {
     return this.db.appointment.findMany({
       where: {
         tenantId,
+        ...(actor.role === "EMPLOYEE" && { employeeMembershipId: actor.id }),
         ...(from && to && { startsAt: { gte: from, lt: to } }),
       },
       include: {

@@ -1,5 +1,5 @@
 import {
-  Body, Controller, ForbiddenException, Get, Injectable, Logger, NotFoundException,
+  BadRequestException, Body, Controller, ForbiddenException, Get, Injectable, Logger, NotFoundException,
   OnModuleDestroy, OnModuleInit, Param, Patch, Post, Req, UseGuards,
 } from "@nestjs/common";
 import { IsDateString, IsInt, Max, Min } from "class-validator";
@@ -131,6 +131,13 @@ export class BillingService {
       select: { monthlyFeeCents: true, billingDueDay: true, billingStartedAt: true },
     });
     if (!previous) throw new NotFoundException("Estabelecimento não encontrado");
+    // Competências emitidas são imutáveis: alterar vencimento ou início afetaria
+    // apenas novos registros e deixaria o contrato inconsistente.
+    const issued = await this.db.monthlyFee.count({ where: { tenantId } });
+    if (issued && (dto.billingDueDay !== previous.billingDueDay ||
+        startedAt.getTime() !== previous.billingStartedAt.getTime())) {
+      throw new BadRequestException("Vencimento e início contratual não podem mudar após a emissão de mensalidades");
+    }
     const tenant = await this.db.$transaction(async tx => {
       const updated = await tx.tenant.update({
         where: { id: tenantId },
@@ -155,21 +162,23 @@ export class BillingService {
   async markPaid(monthlyFeeId: string, actorUserId: string) {
     const fee = await this.db.monthlyFee.findUnique({ where: { id: monthlyFeeId } });
     if (!fee) throw new NotFoundException("Mensalidade não encontrada");
-    if (fee.status !== "PAID") {
-      const paidAt = new Date();
-      await this.db.$transaction(async tx => {
-        await tx.monthlyFee.update({
-          where: { id: monthlyFeeId },
-          data: { status: "PAID", paidAt, confirmedById: actorUserId },
-        });
+    const paidAt = new Date();
+    await this.db.$transaction(async tx => {
+      // A condição no UPDATE é a fronteira de concorrência; apenas um operador
+      // pode converter PENDING em PAID e criar o evento de auditoria.
+      const changed = await tx.monthlyFee.updateMany({
+        where: { id: monthlyFeeId, status: "PENDING" },
+        data: { status: "PAID", paidAt, confirmedById: actorUserId },
+      });
+      if (changed.count) {
         await tx.billingAudit.create({
           data: {
             tenantId: fee.tenantId, monthlyFeeId, actorUserId, action: "PAYMENT_CONFIRMED",
             payload: { paidAt: paidAt.toISOString(), amountCents: fee.amountCents },
           },
         });
-      });
-    }
+      }
+    });
     await this.refreshTenantState(fee.tenantId);
     return this.db.monthlyFee.findUniqueOrThrow({
       where: { id: monthlyFeeId },
@@ -194,10 +203,21 @@ export class BillingService {
         },
       },
     });
+    const [pending, overdue] = await Promise.all([
+      this.db.monthlyFee.groupBy({
+        by: ["tenantId"], where: { status: "PENDING" }, _count: { _all: true },
+      }),
+      this.db.monthlyFee.groupBy({
+        by: ["tenantId"], where: { status: "PENDING", overdueAt: { lte: now } },
+        _count: { _all: true },
+      }),
+    ]);
+    const pendingByTenant = new Map(pending.map(row => [row.tenantId, row._count._all]));
+    const overdueByTenant = new Map(overdue.map(row => [row.tenantId, row._count._all]));
     return tenants.map(tenant => ({
       ...tenant,
-      pendingCount: tenant.monthlyFees.filter(fee => fee.status === "PENDING").length,
-      overdueCount: tenant.monthlyFees.filter(fee => fee.status === "PENDING" && fee.overdueAt <= now).length,
+      pendingCount: pendingByTenant.get(tenant.id) ?? 0,
+      overdueCount: overdueByTenant.get(tenant.id) ?? 0,
     }));
   }
 
@@ -217,11 +237,11 @@ export class BillingService {
         monthlyFees: { orderBy: { competence: "desc" }, take: 24 },
       },
     });
-    return {
-      ...tenant,
-      pendingCount: tenant.monthlyFees.filter(fee => fee.status === "PENDING").length,
-      overdueCount: tenant.monthlyFees.filter(fee => fee.status === "PENDING" && fee.overdueAt <= now).length,
-    };
+    const [pendingCount, overdueCount] = await Promise.all([
+      this.db.monthlyFee.count({ where: { tenantId, status: "PENDING" } }),
+      this.db.monthlyFee.count({ where: { tenantId, status: "PENDING", overdueAt: { lte: now } } }),
+    ]);
+    return { ...tenant, pendingCount, overdueCount };
   }
 }
 

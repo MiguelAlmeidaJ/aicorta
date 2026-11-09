@@ -10,7 +10,7 @@ type Booking = { id: string; startsAt: string; status: string; priceCents: numbe
   client: { name: string }; service: { name: string }; employee: { user: { name: string } } };
 type Dashboard = { tenant: { name: string; slug: string; status: string; billingDueDay: number; timezone: string };
   appointmentsToday: number; pending: number; team: number; clients: number; services: number;
-  completedRevenueCents: number; upcoming: Booking[]; actorRole: string;
+  completedServiceValueCents: number; receivedPaymentsCents: number; upcoming: Booking[]; actorRole: string;
   setup: { services: boolean; shopHours: boolean; professionalHours: boolean; assignedServices: boolean } };
 
 export default function TenantOverview() {
@@ -76,8 +76,8 @@ export default function TenantOverview() {
         value={data?.pending ?? "—"} note="Agendamentos futuros pendentes"/>
       <StatCard icon={UsersRound} label="Clientes vinculados"
         value={data?.clients ?? "—"} note="Com acesso ativo à barbearia"/>
-      <StatCard icon={Wallet} label="Faturamento concluído no mês"
-        value={data ? money(data.completedRevenueCents) : "—"} note="Somente serviços concluídos"/>
+      <StatCard icon={Wallet} label="Recebimentos registrados no mês"
+        value={data ? money(data.receivedPaymentsCents) : "—"} note="Pix, cartão e dinheiro informados pela equipe"/>
     </div>
     <div className="mt-6 grid gap-6 xl:grid-cols-[1.65fr_1fr]">
       <Panel title="Próximos agendamentos" description="Reservas futuras pendentes e confirmadas"

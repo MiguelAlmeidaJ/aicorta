@@ -122,7 +122,7 @@ export class DashboardService {
     const end = localToUtc(nextDay, 0, tenant.timezone) ?? new Date(nextDay + "T00:00:00Z");
     const monthStart = localToday.slice(0, 7) + "-01";
     const monthFrom = localToUtc(monthStart, 0, tenant.timezone) ?? new Date(monthStart + "T00:00:00Z");
-    const [appointmentsToday, pending, team, clients, services, revenue, upcoming, shopHours, staffHours, assignedServices] = await Promise.all([
+    const [appointmentsToday, pending, team, clients, services, serviceValue, paymentsReceived, upcoming, shopHours, staffHours, assignedServices] = await Promise.all([
       this.db.appointment.count({ where: { tenantId, startsAt: { gte: start, lt: end },
         status: { not: "CANCELLED" } } }),
       this.db.appointment.count({ where: { tenantId, status: "PENDING", startsAt: { gte: now } } }),
@@ -131,6 +131,8 @@ export class DashboardService {
       this.db.service.count({ where: { tenantId, isActive: true } }),
       this.db.appointment.aggregate({ where: { tenantId, status: "COMPLETED",
         startsAt: { gte: monthFrom } }, _sum: { priceCents: true } }),
+      this.db.payment.aggregate({ where: { tenantId, status: "CONFIRMED",
+        createdAt: { gte: monthFrom, lt: end } }, _sum: { amountCents: true } }),
       this.db.appointment.findMany({
         where: { tenantId, startsAt: { gte: now }, status: { in: ["PENDING", "CONFIRMED"] } },
         take: 8, orderBy: { startsAt: "asc" },
@@ -151,7 +153,8 @@ export class DashboardService {
     return { tenant, actorRole: actor?.role, appointmentsToday, pending, team, clients, services,
       setup: { services: services > 0, shopHours: shopHours > 0,
         professionalHours: staffHours > 0, assignedServices: assignedServices > 0 },
-      completedRevenueCents: revenue._sum.priceCents ?? 0, upcoming };
+      completedServiceValueCents: serviceValue._sum.priceCents ?? 0,
+      receivedPaymentsCents: paymentsReceived._sum.amountCents ?? 0, upcoming };
   }
 }
 
