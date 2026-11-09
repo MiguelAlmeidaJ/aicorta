@@ -3,9 +3,11 @@
 /* eslint-disable @next/next/no-img-element -- imagens de capa hospedadas na API do AICorta */
 import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
-import { ArrowRight, ArrowUpRight, CalendarDays, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
 import { PublicHeader } from "../components/public/public-header";
 import { API_URL, apiJson } from "../lib/api";
+
+type Faq = { id: string; question: string; answer: string };
 
 type Establishment = {
   id: string; name: string; slug: string; city: string | null; state: string | null;
@@ -49,6 +51,7 @@ export default function HomePage() {
   const [establishments, setEstablishments] = useState<Establishment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [faq, setFaq] = useState<Faq[]>([]);
 
   async function search(term: string) {
     setLoading(true); setError("");
@@ -64,6 +67,12 @@ export default function HomePage() {
 
   useEffect(() => {
     let active = true;
+    apiJson<Faq[]>("/public/faq").then(items => { if (active) setFaq(items); }).catch(() => null);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     apiJson<Establishment[]>("/public/tenants")
       .then(items => { if (active) setEstablishments(items); })
       .catch(() => { if (active) setError("Não foi possível carregar as barbearias."); })
@@ -76,7 +85,6 @@ export default function HomePage() {
     void search(query);
     document.getElementById("barbearias")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  const featured = establishments.find(shop => shop.coverUrl);
 
   return <main className="min-h-dvh bg-[#f6f6f3] text-[#1b1e1a]">
     <PublicHeader active="inicio"/>
@@ -106,18 +114,28 @@ export default function HomePage() {
           </div>
         </div>
         <div className="relative">
-          <div className="aspect-[1.21/1] overflow-hidden rounded-[22px] border border-[#d9ddd4] bg-[#e7e9e3] shadow-[0_28px_55px_rgba(20,27,17,.09)] sm:aspect-[1.35/1] lg:aspect-[.98/1]">
-            {featured ? <ShopCover item={featured} className="object-center"/> :
-              <div className="relative flex h-full w-full items-center justify-center bg-[#252b25]">
-                <div className="absolute inset-7 rounded-xl border border-white/10"/>
-                <Scissors size={75} strokeWidth={.8} className="text-[#b79a67]"/>
-              </div>}
+          <div className="grid aspect-[1.2/1] grid-cols-[1.6fr_.76fr] gap-3 overflow-hidden sm:aspect-[1.4/1] lg:aspect-[1.02/1]">
+            <div className="relative min-w-0 overflow-hidden rounded-[18px] bg-[#292c27]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- fotografia editorial licenciada no Unsplash */}
+              <img src="https://images.unsplash.com/photo-1672257493626-038f96997ade?auto=format&fit=crop&w=1200&q=85"
+                alt="Interior real de barbearia com cadeiras de corte e espelhos"
+                className="h-full w-full object-cover" loading="eager"/>
+            </div>
+            <div className="flex min-w-0 flex-col gap-3">
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-[18px] bg-[#292c27]">
+                {/* eslint-disable-next-line @next/next/no-img-element -- fotografia editorial de barbearia */}
+                <img src="https://images.unsplash.com/photo-1703792686658-24e62d626ed2?auto=format&fit=crop&w=650&q=85"
+                  alt="Profissional realizando um corte de cabelo"
+                  className="h-full w-full object-cover" loading="lazy"/>
+              </div>
+              <div className="flex h-[27%] min-h-0 items-end rounded-[18px] bg-[#1d221c] p-3 text-white sm:p-5">
+                <div><Scissors size={21} className="text-[#e3bc62]"/>
+                  <p className="mt-2 text-[11px] font-medium leading-4 text-[#d8dfd2] sm:text-[13px] sm:leading-5">Seu estilo merece cuidado.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          {featured && <Link href={`/b/${featured.slug}`} className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-4 rounded-xl border border-white/70 bg-white/95 px-5 py-4 shadow-lg backdrop-blur sm:bottom-5 sm:left-5 sm:right-5">
-            <span className="min-w-0"><span className="block text-[10px] font-semibold uppercase tracking-[.12em] text-[#8e968a]">Conheça a barbearia</span>
-              <span className="mt-1 block truncate text-[15px] font-bold text-[#212720]">{featured.name}</span></span>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d211c] text-white"><ArrowUpRight size={17}/></span>
-          </Link>}
+          <p className="mt-2 text-right text-[10px] text-[#989e94]">Fotografias reais de barbearias · Imagens ilustrativas</p>
         </div>
       </div>
     </section>
@@ -187,6 +205,28 @@ export default function HomePage() {
         <Link href="/mapa" className="inline-flex items-center gap-2 rounded-xl border border-[#d9ded5] px-5 py-3 text-xs font-semibold hover:bg-[#f5f6f2]"><MapPin size={16}/> Abrir mapa <ArrowRight size={16}/></Link>
       </div>
     </section>
+    {faq.length > 0 && <section aria-labelledby="faq-heading" className="border-t border-[#e7eae4] bg-white">
+      <div className="mx-auto grid max-w-[1180px] gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-16">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#9e895b]">Tire suas dúvidas</p>
+          <h2 id="faq-heading" className="mt-3 text-[clamp(1.9rem,3.5vw,2.7rem)] font-semibold leading-[1.15] tracking-[-.05em]">Perguntas frequentes</h2>
+          <p className="mt-4 max-w-sm text-[14px] leading-7 text-[#818a7e]">Respostas para você agendar com mais facilidade.</p>
+          <Link href="/contato" className="mt-6 inline-flex items-center gap-2 text-[13px] font-semibold text-[#30372d] hover:underline">
+            Precisa de ajuda? <ArrowUpRight size={16}/>
+          </Link>
+        </div>
+        <div className="divide-y divide-[#e6e9e3] border-y border-[#e6e9e3]">
+          {faq.map((item,index) => <details key={item.id} className="group py-5">
+            <summary className="flex cursor-pointer list-none items-center gap-4 text-left [&::-webkit-details-marker]:hidden">
+              <span className="text-[11px] font-bold text-[#a6ac9e]">{String(index+1).padStart(2,"0")}</span>
+              <span className="min-w-0 flex-1 text-[14px] font-semibold leading-6 text-[#272d25] sm:text-[15px]">{item.question}</span>
+              <ChevronDown size={18} className="shrink-0 text-[#7e887c] transition-transform group-open:rotate-180"/>
+            </summary>
+            <p className="pb-1 pl-9 pr-8 pt-3 text-[13px] leading-7 text-[#747e72]">{item.answer}</p>
+          </details>)}
+        </div>
+      </div>
+    </section>}
     <PublicFooter/>
   </main>;
 }
