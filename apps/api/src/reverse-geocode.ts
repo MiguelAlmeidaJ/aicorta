@@ -181,7 +181,7 @@ export async function locateBrazilianAddress(dto: ForwardAddress): Promise<Locat
       const point = matches.find(item => item.geometry.location_type === "ROOFTOP") ?? matches[0];
       if (point) return {
         latitude:point.geometry.location.lat,longitude:point.geometry.location.lng,
-        formattedAddress:point.formatted_address,precision:point.geometry.location.location_type,
+        formattedAddress:point.formatted_address,precision:point.geometry.location_type,
         source:"google",
       };
     } catch { /* Fallback para a base cartográfica pública com rate limit. */ }
