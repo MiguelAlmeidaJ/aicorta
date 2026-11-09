@@ -1,8 +1,8 @@
 import {
   BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get,
-  GoneException, Injectable, NotFoundException, Param, Patch, Post, Query, Req, UseGuards,
+  GoneException, Injectable, NotFoundException, Param, Patch, Post, Query, Req, Res, UseGuards,
 } from "@nestjs/common";
-import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { hash } from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "./prisma.service";
@@ -25,6 +25,7 @@ export class AcceptInvitationDto {
 export class LookupEmployeeDto {
   @IsEmail() email!: string;
 }
+export class AgendaParticipationDto { @IsBoolean() appearsInAgenda!: boolean; }
 export class CreateEmployeeDto {
   @IsEmail() email!: string;
   @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
@@ -37,8 +38,8 @@ export class CreateEmployeeDto {
 export class PeopleService {
   constructor(private readonly db: PrismaService) {}
 
-  list(tenantId: string, role: InviteRole) {
-    return this.db.membership.findMany({
+  async list(tenantId: string, role: InviteRole) {
+    if (role === "CLIENT") return this.db.membership.findMany({
       where: { tenantId, role },
       select: {
         id: true, role: true, isActive: true, createdAt: true,
@@ -46,6 +47,44 @@ export class PeopleService {
       },
       orderBy: { createdAt: "desc" },
     });
+    const tenant = await this.db.tenant.findUniqueOrThrow({
+      where: { id: tenantId }, select: { ownerId: true },
+    });
+    const members = await this.db.membership.findMany({
+      where: { tenantId, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      select: {
+        id: true, role: true, isActive: true, appearsInAgenda: true, createdAt: true,
+        user: { select: { id: true, name: true, username: true, email: true, whatsapp: true,
+          avatarMime: true, updatedAt: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return members.map(member => ({
+      ...member, isOwner: member.user.id === tenant.ownerId,
+      avatarUrl: member.user.avatarMime
+        ? `/tenants/${tenantId}/employees/${member.id}/avatar?v=${member.user.updatedAt.getTime()}`
+        : null,
+    }));
+  }
+
+  async setAgendaParticipation(tenantId: string, membershipId: string, appearsInAgenda: boolean) {
+    const updated = await this.db.membership.updateMany({
+      where: { id: membershipId, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      data: { appearsInAgenda },
+    });
+    if (!updated.count) throw new NotFoundException("Pessoa não encontrada na equipe");
+    return { ok: true, appearsInAgenda };
+  }
+
+  async employeeAvatar(tenantId: string, membershipId: string, res: import("express").Response) {
+    const member = await this.db.membership.findFirst({
+      where: { id: membershipId, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      select: { user: { select: { avatar: true, avatarMime: true } } },
+    });
+    if (!member?.user.avatar || !member.user.avatarMime) throw new NotFoundException("Foto não encontrada");
+    res.setHeader("Content-Type", member.user.avatarMime);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    return res.send(Buffer.from(member.user.avatar));
   }
 
   listInvitations(tenantId: string) {
@@ -235,6 +274,20 @@ export class PeopleController {
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
   @Get("tenants/:tenantId/employees")
   employees(@Param("tenantId") tenantId: string) { return this.people.list(tenantId, "EMPLOYEE"); }
+
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
+  @Patch("tenants/:tenantId/employees/:membershipId/agenda")
+  setAgendaParticipation(@Param("tenantId") tenantId: string, @Param("membershipId") membershipId: string,
+    @Body() dto: AgendaParticipationDto) {
+    return this.people.setAgendaParticipation(tenantId, membershipId, dto.appearsInAgenda);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
+  @Get("tenants/:tenantId/employees/:membershipId/avatar")
+  avatar(@Param("tenantId") tenantId: string, @Param("membershipId") membershipId: string,
+    @Res() res: import("express").Response) {
+    return this.people.employeeAvatar(tenantId, membershipId, res);
+  }
 
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN")
   @Get("tenants/:tenantId/employees/lookup")
