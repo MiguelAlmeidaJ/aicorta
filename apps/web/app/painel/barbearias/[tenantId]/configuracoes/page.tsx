@@ -7,6 +7,22 @@ import { API_URL, apiJson, mutation } from "../../../../../lib/api";
 import { fieldClass, PageHeader, Panel, primaryButton, StatusPill } from "../../../../../components/dashboard/ui";
 import { TenantCoverCrop } from "../../../../../components/tenants/tenant-cover-crop";
 
+function cleanSlug(raw: string) {
+  return raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-")
+    .replace(/^-/, "").slice(0, 50);
+}
+function friendlySettingsError(error: unknown) {
+  const detail = error instanceof Error ? error.message : "";
+  if (/já está em uso|already exists|unique constraint|P2002/i.test(detail))
+    return "Esse endereço já pertence a outra barbearia. Escolha outro nome para o link.";
+  if (/state|UF|regular expression|must match|must be a string/i.test(detail))
+    return "Informe uma UF com duas letras (por exemplo, MG) ou deixe o campo Estado vazio.";
+  if (/slug|lowercase|match|alfanum/i.test(detail))
+    return "O endereço público deve ter de 3 a 50 caracteres, usando somente letras, números e hífens.";
+  return "Não foi possível salvar as alterações. Confira os dados e tente novamente.";
+}
+
 type Settings = { id: string; name: string; slug: string; status: string; billingDueDay: number; timezone: string;
   city: string | null; state: string | null; neighborhood: string | null; coverUrl: string | null };
 export default function TenantSettingsPage() {
@@ -15,26 +31,36 @@ export default function TenantSettingsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedSlug, setSavedSlug] = useState("");
   const [coverDataUrl, setCoverDataUrl] = useState<string | null | undefined>(undefined);
   const handleCoverChange = useCallback((dataUrl: string | null) => setCoverDataUrl(dataUrl ?? undefined), []);
   useEffect(() => {
     let active = true;
     apiJson<Settings>(`/tenants/${tenantId}/settings`)
-      .then(data => { if (active) setValue(data); })
+      .then(data => { if (active) { setValue(data); setSavedSlug(data.slug); } })
       .catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [tenantId]);
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!value) return;
+    const slug = value.slug.replace(/-+$/, "");
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3) {
+      setError("Escolha um endereço de pelo menos 3 caracteres, usando letras, números ou hífens.");
+      return;
+    }
+    if (value.state?.trim() && !/^[A-Za-z]{2}$/.test(value.state.trim())) {
+      setError("O estado deve conter duas letras, como MG. Ou deixe em branco.");
+      return;
+    }
     setSaving(true); setError(""); setMessage("");
     try {
       let saved = await apiJson<Settings>(`/tenants/${tenantId}/settings`,
-        mutation("PATCH", { name: value.name, slug: value.slug, city: value.city ?? "",
-          state: value.state ?? "", neighborhood: value.neighborhood ?? "" }));
+        mutation("PATCH", { name: value.name.trim(), slug, city: value.city?.trim() ?? "",
+          state: value.state?.trim() ?? "", neighborhood: value.neighborhood?.trim() ?? "" }));
       if (coverDataUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, mutation("PUT", { imageDataUrl: coverDataUrl }));
       else if (coverDataUrl === null && value.coverUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, { method: "DELETE" });
-      setValue(saved); setCoverDataUrl(undefined); setMessage("Configurações salvas com sucesso.");
-    } catch(e) { setError(e instanceof Error ? e.message : "Não foi possível salvar"); }
+      setValue(saved); setSavedSlug(saved.slug); setCoverDataUrl(undefined); setMessage("Configurações salvas com sucesso.");
+    } catch(e) { setError(friendlySettingsError(e)); }
     finally { setSaving(false); }
   }
   return <>
@@ -54,15 +80,15 @@ export default function TenantSettingsPage() {
               <span className="hidden border-r border-[#e8eae5] bg-[#f5f6f3] px-4 py-3 text-xs text-[#90948c] sm:block">/b/</span>
               <input required minLength={3} maxLength={50} pattern="[a-z0-9]+(-[a-z0-9]+)*"
                 className="min-w-0 flex-1 bg-white px-4 py-3 text-sm outline-none" value={value.slug}
-                onChange={e => setValue({ ...value, slug: e.target.value.toLowerCase() })}/>
+                onChange={e => setValue({ ...value, slug: cleanSlug(e.target.value) })}/>
             </div>
-            <span className="mt-2 block text-xs font-normal text-[#999e95]">Letras minúsculas, números e hífens. Alterar o slug muda o link público da barbearia.</span>
+            <span className="mt-2 block text-xs font-normal text-[#999e95]">Letras, números e hífens. Espaços são convertidos em hífens automaticamente. O link antigo deixará de funcionar após salvar.</span>
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-semibold text-[#52574f]">Cidade
               <input maxLength={100} className={fieldClass + " mt-2"} value={value.city ?? ""} onChange={e => setValue({ ...value, city: e.target.value })}/></label>
             <label className="block text-xs font-semibold text-[#52574f]">Estado (UF)
-              <input maxLength={2} pattern="[A-Za-z]{2}" className={fieldClass + " mt-2 uppercase"} value={value.state ?? ""} onChange={e => setValue({ ...value, state: e.target.value.toUpperCase() })}/></label>
+              <input maxLength={2} pattern="[A-Za-z]{2}" placeholder="Ex.: MG" className={fieldClass + " mt-2 uppercase"} value={value.state ?? ""} onChange={e => setValue({ ...value, state: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })}/></label>
           </div>
           <label className="block text-xs font-semibold text-[#52574f]">Bairro
             <input maxLength={100} className={fieldClass + " mt-2"} value={value.neighborhood ?? ""} onChange={e => setValue({ ...value, neighborhood: e.target.value })}/></label>
@@ -99,9 +125,9 @@ export default function TenantSettingsPage() {
           </div>}
         </Panel>
         <Panel title="Página pública" description="Compartilhe o endereço de agendamento">
-          {value && <Link href={`/b/${value.slug}`} target="_blank" rel="noopener noreferrer"
+          {value && <Link href={`/b/${savedSlug || value.slug}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-between rounded-xl border border-[#e4e6e0] bg-[#f9faf7] p-4 text-sm font-semibold transition hover:bg-[#eff1eb]">
-            <span className="truncate">/b/{value.slug}</span><ExternalLink size={17}/>
+            <span className="truncate">/b/{savedSlug || value.slug}</span><ExternalLink size={17}/>
           </Link>}
         </Panel>
       </div>
