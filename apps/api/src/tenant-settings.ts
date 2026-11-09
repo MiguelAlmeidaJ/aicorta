@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Post, Put, Res, ServiceUnavailableException, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Post, Put, Res, UseGuards } from "@nestjs/common";
 import { IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import type { Response } from "express";
 import { PrismaService } from "./prisma.service";
@@ -6,7 +6,7 @@ import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { imageDimensions } from "./services";
 import { Throttle } from "@nestjs/throttler";
-import { reverseGeocode } from "./reverse-geocode";
+import { locateBrazilianAddress, reverseGeocode } from "./reverse-geocode";
 
 const MAX_COVER_BYTES = 500 * 1024;
 export function parseTenantCover(dataUrl: string) {
@@ -95,37 +95,7 @@ export class TenantSettingsService {
     }
   }
   async geocode(dto: LocateTenantDto) {
-    // Provedor comercial configurável: não depende de geocodificação pública sem limite.
-    const key = process.env.GOOGLE_GEOCODING_API_KEY;
-    if (!key) throw new ServiceUnavailableException(
-      "Busca automática indisponível. Confirme a localização clicando no mapa ou configure o serviço de geocodificação.");
-    const address = [dto.street + ", " + dto.streetNumber, dto.neighborhood, dto.city, dto.state,
-      dto.postalCode, "Brasil"].filter(Boolean).join(", ");
-    const params = new URLSearchParams({ address, key, region: "br", language: "pt-BR" });
-    try {
-      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, {
-        signal: AbortSignal.timeout(7000),
-      });
-      if (!response.ok) throw new Error("Geocoder HTTP");
-      const result = await response.json() as {
-        status: string; results?: Array<{
-          formatted_address: string;
-          geometry: { location: { lat: number; lng: number }; location_type: string };
-          address_components: Array<{ long_name: string; short_name: string; types: string[] }>;
-        }>;
-      };
-      const point = result.results?.find(item => item.address_components.some(part =>
-        part.types.includes("country") && part.short_name === "BR"));
-      if (!point || !Number.isFinite(point.geometry.location.lat) ||
-          !Number.isFinite(point.geometry.location.lng)) {
-        throw new BadRequestException("O endereço não foi localizado. Confira os dados ou posicione o pin manualmente.");
-      }
-      return { latitude: point.geometry.location.lat, longitude: point.geometry.location.lng,
-        formattedAddress: point.formatted_address, precision: point.geometry.location_type };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new ServiceUnavailableException("Não foi possível consultar o endereço. Ajuste o pin diretamente no mapa.");
-    }
+    return locateBrazilianAddress(dto);
   }
 
   async reverseGeocode(dto: ReverseGeocodeDto) {
