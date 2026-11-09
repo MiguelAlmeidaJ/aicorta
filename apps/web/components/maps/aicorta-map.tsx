@@ -41,11 +41,14 @@ function leaflet(): Promise<Leaflet> {
   return pending;
 }
 
-const pinHtml = `<div style="position:relative;width:38px;height:48px;filter:drop-shadow(0 3px 5px #0003)">
-  <div style="width:38px;height:38px;border:3px solid #fff;border-radius:50% 50% 50% 6px;transform:rotate(-45deg);background:#171917;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 2px #d6a939">
-    <span style="display:block;transform:rotate(45deg);font-size:18px;color:#eec946;font-weight:bold">✂</span>
+const pinHtml = `<div style="position:relative;width:44px;height:54px;filter:drop-shadow(0 4px 6px #0005)">
+  <div style="width:42px;height:42px;border:3px solid #e5bd51;border-radius:50% 50% 50% 7px;transform:rotate(-45deg);background:#181b17;display:flex;align-items:center;justify-content:center">
+    <span style="display:flex;align-items:center;justify-content:center;width:29px;height:29px;border-radius:50%;background:#fff;transform:rotate(45deg);overflow:hidden">
+      <img src="/favicon" alt="" style="display:block;width:25px;height:25px;object-fit:contain"/>
+    </span>
   </div>
 </div>`;
+
 
 export function AicortaMap({ points, selectedId, onSelect, onPick, height = 420 }: {
   points: MapPoint[]; selectedId?: string; onSelect?: (id:string)=>void;
@@ -74,7 +77,7 @@ export function AicortaMap({ points, selectedId, onSelect, onPick, height = 420 
       else if (visible.length === 1) map.setView([visible[0].latitude,visible[0].longitude],16);
       else if (visible.length > 1) map.fitBounds(visible.map(p=>[p.latitude,p.longitude] as [number,number]), { padding: [55,55], maxZoom: 14 });
       else map.setView([-14.235,-51.925],4);
-      const icon = L.divIcon({ html: pinHtml, className: "aicorta-map-pin", iconSize: [38,48], iconAnchor: [19,46] });
+      const icon = L.divIcon({ html: pinHtml, className: "aicorta-map-pin", iconSize: [44,54], iconAnchor: [22,52] });
       visible.forEach(p=>{
         L.marker([p.latitude,p.longitude], { icon, title: p.label ?? "Barbearia" })
           .addTo(map!).on("click",()=>selectRef.current?.(p.id));
