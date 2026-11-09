@@ -76,8 +76,8 @@ function InviteRegistration() {
   return <RegistrationShell>
     <div className="overflow-hidden rounded-[22px] border border-[#e5e7e1] bg-white shadow-[0_16px_55px_rgba(15,20,15,0.045)] sm:rounded-[24px]">
       <div className="px-6 pt-8 sm:px-10 sm:pt-10">
-        <Link href="/" className="inline-flex items-center" aria-label="Voltar ao início do AICorta">
-          <BrandLogo className="h-10 max-w-[166px]"/>
+        <Link href="/" className="flex w-full items-center justify-center" aria-label="Voltar ao início do AICorta">
+          <BrandLogo className="h-20 max-w-[280px] sm:h-24 sm:max-w-[320px]"/>
         </Link>
         <h1 className="mt-8 text-[27px] font-bold leading-tight tracking-[-0.042em] text-[#151715] sm:text-[32px]">
           Cadastrar barbearia
