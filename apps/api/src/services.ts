@@ -157,7 +157,7 @@ export class ServiceCatalogService {
       select: {
         ownerId: true,
         memberships: {
-          where: { isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+          where: { isActive: true, appearsInAgenda: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
           select: { id: true, role: true, userId: true, user: { select: { name: true, email: true } } },
           orderBy: { createdAt: "asc" },
         },
@@ -174,13 +174,13 @@ export class ServiceCatalogService {
       const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { ownerId: true } });
       if (!tenant) throw new NotFoundException("Barbearia não encontrada");
       const owner = await tx.membership.findUnique({
-        where: { userId_tenantId: { userId: tenant.ownerId, tenantId } }, select: { id: true, isActive: true },
+        where: { userId_tenantId: { userId: tenant.ownerId, tenantId } }, select: { id: true, isActive: true, appearsInAgenda: true },
       });
-      if (!owner?.isActive) throw new BadRequestException("O proprietário precisa ter um vínculo ativo");
+      if (!owner?.isActive || !owner.appearsInAgenda) throw new BadRequestException("Selecione um profissional que participa da agenda");
       ids = [owner.id];
     }
     const professionals = await tx.membership.findMany({
-      where: { id: { in: ids }, tenantId, isActive: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
+      where: { id: { in: ids }, tenantId, isActive: true, appearsInAgenda: true, role: { in: ["ADMIN", "EMPLOYEE"] } },
       select: { id: true },
     });
     if (professionals.length !== ids.length) {
