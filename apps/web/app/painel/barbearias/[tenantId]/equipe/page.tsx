@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { CheckCircle2, Search, UserPlus, UserRound, UsersRound } from "lucide-react";
 import { API_URL, apiJson, mutation } from "../../../../../lib/api";
 import { EmptyState, fieldClass, PageHeader, Panel, primaryButton, secondaryButton, StatusPill } from "../../../../../components/dashboard/ui";
+import { useBrand } from "../../../../../components/brand/brand-provider";
 
 type Member = {
   id: string; isActive: boolean; role: string; appearsInAgenda: boolean; isOwner: boolean; avatarUrl: string | null;
@@ -19,6 +20,7 @@ const emptyAccount = { name: "", username: "", whatsapp: "", password: "" };
 
 export default function TeamPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
+  const { brand } = useBrand();
   const [members, setMembers] = useState<Member[]>([]);
   const [email, setEmail] = useState("");
   const [lookup, setLookup] = useState<Lookup | null>(null);
@@ -61,7 +63,7 @@ export default function TeamPage() {
     try {
       const payload = lookup.exists ? { email: lookup.email } : { email: lookup.email, ...account };
       const created = await apiJson<Member>(`/tenants/${tenantId}/employees`, mutation("POST", payload));
-      setMembers(current => [created, ...current.filter(item => item.id !== created.id)]);
+      setMembers(await apiJson<Member[]>(`/tenants/${tenantId}/employees`));
       setMessage(lookup.exists ? `${created.user.name} foi vinculado à equipe.` :
         `Acesso de ${created.user.name} criado e vinculado à equipe.`);
       setEmail(""); setLookup(null); setAccount(emptyAccount);
@@ -107,7 +109,7 @@ export default function TeamPage() {
           description="Procure uma conta por e-mail ou crie o primeiro acesso da equipe."/> :
         <div className="divide-y divide-[#f0f1ed]">{members.map(member =>
           <div key={member.id} className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0">
-            <TeamAvatar name={member.user.name} avatarUrl={member.avatarUrl}/>
+            <TeamAvatar name={member.user.name} avatarUrl={member.avatarUrl ?? brand.defaultImages.avatar}/>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{member.user.name}</p>
               <p className="mt-1 truncate text-xs text-[#92978f]">{member.user.email} · @{member.user.username}</p>
               <p className="mt-1 text-[11px] font-medium text-[#646c61]">{member.isOwner ? "Proprietário" : member.role === "ADMIN" ? "Administrador" : "Colaborador"}</p></div>
