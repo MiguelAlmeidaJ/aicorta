@@ -31,6 +31,7 @@ test("starting a service order is tenant-scoped and records an immutable event",
     serviceOrderEvent: { create: async (args: { data: unknown }) => { calls.event = args.data; } },
   };
   const db = {
+    membership: { findUniqueOrThrow: async () => ({ id: "member-admin", role: "ADMIN" }) },
     $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx),
     serviceOrder: { findFirst: async () => ({ id: "order", status: "IN_PROGRESS" }) },
   };
@@ -48,7 +49,7 @@ test("starting an order in an invalid state is rejected", async () => {
     serviceOrder: { updateMany: async () => ({ count: 0 }) },
     serviceOrderEvent: { create: async () => undefined },
   };
-  const db = { $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx) };
+  const db = { membership: { findUniqueOrThrow: async () => ({ id: "member-admin", role: "ADMIN" }) }, $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx) };
   const service = new ServiceOrderService(db as never);
   await assert.rejects(() => service.start("tenant", "order", "actor"), ConflictException);
 });
@@ -62,7 +63,7 @@ test("discount cannot exceed the order subtotal", async () => {
     },
     serviceOrderEvent: { create: async () => undefined },
   };
-  const db = { $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx) };
+  const db = { membership: { findUniqueOrThrow: async () => ({ id: "member-admin", role: "ADMIN" }) }, $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx) };
   const service = new ServiceOrderService(db as never);
   await assert.rejects(() => service.applyDiscount("tenant", "order", "actor", {
     discountCents: 5001, reason: "Desconto de teste",
@@ -77,6 +78,7 @@ test("closing an already closed order is idempotent", async () => {
     appointment: { updateMany: async () => { appointmentWrites++; return { count: 1 }; } },
   };
   const db = {
+    membership: { findUniqueOrThrow: async () => ({ id: "member-admin", role: "ADMIN" }) },
     $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx),
     serviceOrder: { findFirst: async () => ({ id: "order", status: "CLOSED" }) },
   };
@@ -84,4 +86,15 @@ test("closing an already closed order is idempotent", async () => {
   const result = await service.close("tenant", "order", "actor") as { status: string };
   assert.equal(result.status, "CLOSED");
   assert.equal(appointmentWrites, 0);
+});
+
+test("funcionário não pode alterar comanda de outro profissional", async () => {
+  const db = {
+    membership: { findUniqueOrThrow: async () => ({ id: "member-a", role: "EMPLOYEE" }) },
+    serviceOrder: { count: async () => 0 },
+  };
+  const service = new ServiceOrderService(db as never);
+  await assert.rejects(() => service.start("tenant", "order-other", "employee"), {
+    name: "ForbiddenException",
+  });
 });
