@@ -6,6 +6,7 @@ import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { imageDimensions } from "./services";
 import { Throttle } from "@nestjs/throttler";
+import { reverseGeocode } from "./reverse-geocode";
 
 const MAX_COVER_BYTES = 500 * 1024;
 export function parseTenantCover(dataUrl: string) {
@@ -36,6 +37,10 @@ export class UpdateTenantSettingsDto {
 }
 
 export class UpdateTenantCoverDto { @IsString() imageDataUrl!: string; }
+export class ReverseGeocodeDto {
+  @IsNumber() @Min(-90) @Max(90) latitude!: number;
+  @IsNumber() @Min(-180) @Max(180) longitude!: number;
+}
 export class LocateTenantDto {
   @IsString() @MinLength(3) @MaxLength(180) street!: string;
   @IsString() @MinLength(1) @MaxLength(20) streetNumber!: string;
@@ -123,6 +128,10 @@ export class TenantSettingsService {
     }
   }
 
+  async reverseGeocode(dto: ReverseGeocodeDto) {
+    return reverseGeocode(dto.latitude, dto.longitude);
+  }
+
   async updateCover(tenantId: string, dataUrl: string) {
     const image = parseTenantCover(dataUrl);
     await this.db.tenant.update({ where: { id: tenantId }, data: { cover: image.bytes, coverMime: image.mime } });
@@ -155,6 +164,9 @@ export class TenantSettingsController {
   @Post("geocode")
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   geocode(@Body() dto: LocateTenantDto) { return this.settings.geocode(dto); }
+  @Post("reverse-geocode")
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  reverse(@Body() dto: ReverseGeocodeDto) { return this.settings.reverseGeocode(dto); }
   @Put("cover")
   updateCover(@Param("tenantId") tenantId: string, @Body() dto: UpdateTenantCoverDto) {
     return this.settings.updateCover(tenantId, dto.imageDataUrl);
