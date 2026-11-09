@@ -217,7 +217,7 @@ export default function TenantSettingsPage() {
             </div>
             <label className="block text-xs font-semibold text-[#52574f]">Complemento (opcional)
               <input maxLength={120} placeholder="Sala, loja, referência..." className={fieldClass+" mt-2"}
-                value={value.complement ?? ""} onChange={e=>changeAddress({complement:e.target.value})}/>
+                value={value.complement ?? ""} onChange={e=>setValue({ ...value, complement:e.target.value })}/>
             </label>
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={locating} onClick={()=>void locateAddress()}
