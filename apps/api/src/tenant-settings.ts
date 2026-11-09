@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Put, Res, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Post, Put, Res, ServiceUnavailableException, UseGuards } from "@nestjs/common";
 import { IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import type { Response } from "express";
 import { PrismaService } from "./prisma.service";
@@ -35,6 +35,14 @@ export class UpdateTenantSettingsDto {
 }
 
 export class UpdateTenantCoverDto { @IsString() imageDataUrl!: string; }
+export class LocateTenantDto {
+  @IsString() @MinLength(3) @MaxLength(180) street!: string;
+  @IsString() @MinLength(1) @MaxLength(20) streetNumber!: string;
+  @IsString() @MinLength(2) @MaxLength(100) city!: string;
+  @IsString() @Matches(/^[A-Z]{2}$/, { message: "Informe a UF com duas letras." }) state!: string;
+  @IsOptional() @IsString() @MaxLength(100) neighborhood?: string;
+  @IsOptional() @IsString() @Matches(/^[0-9]{8}$/) postalCode?: string;
+}
 
 const settingsSelect = {
   id: true, name: true, slug: true, timezone: true, status: true, billingDueDay: true,
@@ -80,6 +88,40 @@ export class TenantSettingsService {
       throw error;
     }
   }
+  async geocode(dto: LocateTenantDto) {
+    // Provedor comercial configurável: não depende de geocodificação pública sem limite.
+    const key = process.env.GOOGLE_GEOCODING_API_KEY;
+    if (!key) throw new ServiceUnavailableException(
+      "Busca automática indisponível. Confirme a localização clicando no mapa ou configure o serviço de geocodificação.");
+    const address = [dto.street + ", " + dto.streetNumber, dto.neighborhood, dto.city, dto.state,
+      dto.postalCode, "Brasil"].filter(Boolean).join(", ");
+    const params = new URLSearchParams({ address, key, region: "br", language: "pt-BR" });
+    try {
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, {
+        signal: AbortSignal.timeout(7000),
+      });
+      if (!response.ok) throw new Error("Geocoder HTTP");
+      const result = await response.json() as {
+        status: string; results?: Array<{
+          formatted_address: string;
+          geometry: { location: { lat: number; lng: number }; location_type: string };
+          address_components: Array<{ long_name: string; short_name: string; types: string[] }>;
+        }>;
+      };
+      const point = result.results?.find(item => item.address_components.some(part =>
+        part.types.includes("country") && part.short_name === "BR"));
+      if (!point || !Number.isFinite(point.geometry.location.lat) ||
+          !Number.isFinite(point.geometry.location.lng)) {
+        throw new BadRequestException("O endereço não foi localizado. Confira os dados ou posicione o pin manualmente.");
+      }
+      return { latitude: point.geometry.location.lat, longitude: point.geometry.location.lng,
+        formattedAddress: point.formatted_address, precision: point.geometry.location_type };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new ServiceUnavailableException("Não foi possível consultar o endereço. Ajuste o pin diretamente no mapa.");
+    }
+  }
+
   async updateCover(tenantId: string, dataUrl: string) {
     const image = parseTenantCover(dataUrl);
     await this.db.tenant.update({ where: { id: tenantId }, data: { cover: image.bytes, coverMime: image.mime } });
@@ -109,6 +151,8 @@ export class TenantSettingsController {
   update(@Param("tenantId") tenantId: string, @Body() dto: UpdateTenantSettingsDto) {
     return this.settings.update(tenantId, dto);
   }
+  @Post("geocode")
+  geocode(@Body() dto: LocateTenantDto) { return this.settings.geocode(dto); }
   @Put("cover")
   updateCover(@Param("tenantId") tenantId: string, @Body() dto: UpdateTenantCoverDto) {
     return this.settings.updateCover(tenantId, dto.imageDataUrl);
