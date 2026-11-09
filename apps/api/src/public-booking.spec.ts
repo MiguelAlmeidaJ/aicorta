@@ -59,3 +59,22 @@ test("agendamento público preserva todos os serviços selecionados", async () =
   assert.equal(received?.serviceId, "11111111-1111-4111-8111-111111111111");
   assert.equal(received?.serviceIds?.length, 2);
 });
+
+test("diretório público usa a capa própria ou a capa padrão do SYSTEM, nunca fotos de serviços", async () => {
+  const now = new Date("2026-11-09T15:00:00.000Z");
+  const db = {
+    tenant: { findMany: async () => [
+      { id: "a", name: "Com capa", slug: "com-capa", city: null, state: null,
+        neighborhood: null, coverMime: "image/jpeg", updatedAt: now },
+      { id: "b", name: "Sem capa", slug: "sem-capa", city: null, state: null,
+        neighborhood: null, coverMime: null, updatedAt: now },
+    ] },
+    platformBrand: { findUnique: async () => ({ defaultTenantCoverMime: "image/jpeg", updatedAt: now }) },
+  };
+  const service = new PublicBookingService(db as never, {} as never, {} as never, {} as never);
+  const items = await service.discover("");
+  assert.equal(items[0].coverUrl, `/b/com-capa/cover?v=${now.getTime()}`);
+  assert.equal(items[1].coverUrl, `/branding/assets/establishment?v=${now.getTime()}`);
+  assert.equal(items[0].hasCustomCover, true);
+  assert.equal(items[1].hasCustomCover, false);
+});
