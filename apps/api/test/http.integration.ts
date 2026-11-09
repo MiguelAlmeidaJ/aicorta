@@ -178,7 +178,7 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.equal(address.status, 200, JSON.stringify(address.json));
     const discovery = await request("GET", "/api/public/tenants");
     assert.equal(discovery.status, 200);
-    const found = (discovery.json as Array<{id:string;street:string;latitude:number;longitude:number}>)
+    const found = (discovery.json as unknown as Array<{id:string;street:string;latitude:number;longitude:number}>)
       .find(item => item.id === tenantA);
     assert.equal(found?.street, "Rua das Flores");
     assert.equal(found?.latitude, -21.876);
