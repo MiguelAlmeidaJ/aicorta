@@ -42,8 +42,7 @@ export class PublicBookingService {
       select: {
         id: true, name: true, slug: true, city: true, state: true, neighborhood: true,
         coverMime: true, updatedAt: true,
-        services: { where: { isActive: true, imageMime: { not: null } },
-          select: { id: true, updatedAt: true }, orderBy: { createdAt: "asc" }, take: 1 },
+
       },
       orderBy: { name: "asc" }, take: 24,
     }), this.db.platformBrand.findUnique({ where: { id: "platform" },
@@ -51,13 +50,11 @@ export class PublicBookingService {
     const defaultCover = branding?.defaultTenantCoverMime ?
       `/branding/assets/establishment?v=${branding.updatedAt.getTime()}` : null;
     return tenants.map(tenant => {
-      const fallback = tenant.services[0];
       return {
         id: tenant.id, name: tenant.name, slug: tenant.slug,
         city: tenant.city, state: tenant.state, neighborhood: tenant.neighborhood,
         hasCustomCover: Boolean(tenant.coverMime),
-        coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : defaultCover ??
-          (fallback ? `/tenants/${tenant.id}/services/${fallback.id}/image?v=${fallback.updatedAt.getTime()}` : null),
+        coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : defaultCover,
       };
     });
   }
