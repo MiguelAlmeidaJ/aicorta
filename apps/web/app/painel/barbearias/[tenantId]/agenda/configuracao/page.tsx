@@ -70,7 +70,6 @@ function toWindows(draft: ScheduleDraft): WindowRow[] {
 function WindowsEditor({ draft, onChange, description }: {
   draft: ScheduleDraft; onChange: (draft: ScheduleDraft) => void; description: string;
 }) {
-  const [newDay, setNewDay] = useState(6);
   if (draft.kind === "custom") {
     const update = (index: number, patch: Partial<WindowRow>) => onChange({
       kind: "custom", windows: draft.windows.map((row, i) => i === index ? { ...row, ...patch } : row),
