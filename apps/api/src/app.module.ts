@@ -33,6 +33,6 @@ import { PlatformFaqController, PlatformFaqService } from "./platform-faq";
     }),
   ],
   controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
-  providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, PlatformFaqService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
