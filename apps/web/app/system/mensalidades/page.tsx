@@ -104,9 +104,9 @@ function BillingDialog({ tenant, busy, onClose, onPaid, onSaved }: {
         <button className={secondaryButton} type="button" onClick={onClose}>Fechar</button></div>
       <form className="mt-6 grid gap-4 rounded-2xl border border-[#e8eae4] bg-[#fafbf8] p-5 sm:grid-cols-4" onSubmit={save}>
         <label className="text-xs font-semibold sm:col-span-2">Valor mensal (R$)<input className={fieldClass + " mt-2"} inputMode="decimal" value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)}/></label>
-        <label className="text-xs font-semibold">Dia de vencimento<input className={fieldClass + " mt-2"} type="number" min={1} max={31} value={dueDay} onChange={event => setDueDay(Number(event.target.value))}/></label>
-        <label className="text-xs font-semibold">Início do contrato<input className={fieldClass + " mt-2"} type="date" required value={startedAt} onChange={event => setStartedAt(event.target.value)}/></label>
-        {formError ? <p role="alert" className="text-xs text-[#9b4741] sm:col-span-3">{formError}</p> : <p className="text-xs leading-5 text-[#81867d] sm:col-span-3">Valor zero desativa novas competências e suspensão financeira. Datas 29, 30 e 31 se ajustam ao último dia do mês.</p>}
+        <label className="text-xs font-semibold">Dia de vencimento<input className={fieldClass + " mt-2"} type="number" min={1} max={31} disabled={tenant.monthlyFees.length > 0} value={dueDay} onChange={event => setDueDay(Number(event.target.value))}/></label>
+        <label className="text-xs font-semibold">Início do contrato<input className={fieldClass + " mt-2"} type="date" required disabled={tenant.monthlyFees.length > 0} value={startedAt} onChange={event => setStartedAt(event.target.value)}/></label>
+        {formError ? <p role="alert" className="text-xs text-[#9b4741] sm:col-span-3">{formError}</p> : <p className="text-xs leading-5 text-[#81867d] sm:col-span-3">Valor zero desativa novas competências e suspensão financeira. Após a primeira mensalidade, início e vencimento ficam fixos; reajustes de valor se aplicam apenas a novas competências.</p>}
         <button className={primaryButton} disabled={saving} type="submit">{saving ? "Salvando..." : "Salvar configuração"}</button>
       </form>
       <div className="mt-7 grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
