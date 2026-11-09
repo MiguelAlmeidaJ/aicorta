@@ -79,8 +79,7 @@ export class PublicBookingService {
     const fallbackService = services.find(service => service.imageMime);
     const tenantView = { ...tenant,
       coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` :
-        branding?.defaultTenantCoverMime ? `/branding/assets/establishment?v=${branding.updatedAt.getTime()}` :
-        fallbackService ? `/tenants/${tenant.id}/services/${fallbackService.id}/image?v=${fallbackService.updatedAt.getTime()}` : null };
+        branding?.defaultTenantCoverMime ? `/branding/assets/establishment?v=${branding.updatedAt.getTime()}` : null };
     return { tenant: tenantView, services: services.map(service => ({ ...service,
       imageUrl: service.imageMime ? `/tenants/${tenant.id}/services/${service.id}/image?v=${service.updatedAt.getTime()}` :
         defaultImageUrl ?? (fallbackService ? `/tenants/${tenant.id}/services/${fallbackService.id}/image?v=${fallbackService.updatedAt.getTime()}` : null) })),
