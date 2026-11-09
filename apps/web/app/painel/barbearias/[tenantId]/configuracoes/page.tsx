@@ -8,6 +8,10 @@ import { fieldClass, PageHeader, Panel, primaryButton, StatusPill } from "../../
 import { TenantCoverCrop } from "../../../../../components/tenants/tenant-cover-crop";
 import { AicortaMap } from "../../../../../components/maps/aicorta-map";
 
+function formatPostalCode(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+}
 function cleanSlug(raw: string) {
   return raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-")
@@ -71,8 +75,15 @@ export default function TenantSettingsPage() {
       }
       patch.state = state;
     }
+    if (value.postalCode && !/^[0-9]{8}$/.test(value.postalCode.replace(/\D/g, ""))) {
+      setError("Confira o CEP: ele precisa ter oito números, como 36660-000."); return;
+    }
     for (const field of ["postalCode", "street", "streetNumber", "complement"] as const) {
-      if ((value[field] ?? "").trim() !== (original[field] ?? "")) patch[field] = value[field]?.trim() || "";
+      if ((value[field] ?? "").trim() !== (original[field] ?? "")) {
+        patch[field] = field === "postalCode"
+          ? (value.postalCode ?? "").replace(/\D/g, "")
+          : value[field]?.trim() || "";
+      }
     }
     if (value.latitude !== original.latitude || value.longitude !== original.longitude) {
       patch.latitude = value.latitude;
@@ -117,6 +128,11 @@ export default function TenantSettingsPage() {
     setValue({ ...value, ...patch, latitude: null, longitude: null });
     setMapMessage("Endereço alterado. Confirme novamente o pin antes de publicar no mapa.");
   }
+  function sameCity(a: string, b: string) {
+    const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-BR").trim();
+    return normalize(a) === normalize(b);
+  }
   async function findPostalCode() {
     if (!value) return;
     const cep = (value.postalCode ?? "").replace(/\D/g, "");
@@ -126,10 +142,16 @@ export default function TenantSettingsPage() {
       const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
       const found = await response.json() as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
       if (!response.ok || found.erro) throw new Error("CEP não encontrado");
-      changeAddress({ postalCode: cep, street: found.logradouro ?? value.street,
-        neighborhood: found.bairro ?? value.neighborhood, city: found.localidade ?? value.city,
-        state: found.uf ?? value.state });
-      setMapMessage("CEP localizado. Confirme o número e posicione o pin no mapa.");
+      const cityConflict = value.city && found.localidade && !sameCity(value.city, found.localidade);
+      const stateConflict = value.state && found.uf && value.state !== found.uf;
+      if (cityConflict || stateConflict) {
+        setError(`O CEP ${formatPostalCode(cep)} pertence a ${found.localidade ?? "outra cidade"}/${found.uf ?? "UF"}. Confira antes de substituir o endereço.`);
+        return;
+      }
+      changeAddress({ postalCode: cep, street: found.logradouro || value.street,
+        neighborhood: found.bairro || value.neighborhood, city: found.localidade || value.city,
+        state: found.uf || value.state });
+      setMapMessage("CEP consultado. Confira rua, número e posição do pin antes de salvar.");
     } catch { setError("Não foi possível consultar o CEP. Preencha os campos manualmente."); }
     finally { setLocating(false); }
   }
@@ -147,10 +169,13 @@ export default function TenantSettingsPage() {
         }));
       setValue(current => current ? { ...current, latitude:result.latitude, longitude:result.longitude } : current);
       setMapMessage(result.precision === "ROOFTOP"
-        ? "Endereço localizado. Confira se o pin está na entrada da barbearia."
-        : "Localização aproximada encontrada. Ajuste o pin clicando no ponto exato do mapa.");
+        ? "Rua e número localizados. Confira o pin antes de salvar."
+        : "Encontramos a rua, mas não foi possível confirmar o número exato. Ajuste o pin no mapa antes de salvar.");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível localizar o endereço.");
+      const message = reason instanceof Error ? reason.message : "";
+      setError(/Não encontramos|Confira a cidade|ponto exato/i.test(message)
+        ? "Não localizamos esse número com segurança. Confirme rua, cidade e UF ou selecione o local diretamente no mapa."
+        : "A consulta do endereço está temporariamente indisponível. Você pode selecionar o ponto no mapa.");
     } finally { setLocating(false); }
   }
   async function populateAddressFromCoordinates(latitude: number, longitude: number, accuracy?: number) {
@@ -163,26 +188,47 @@ export default function TenantSettingsPage() {
         city: string; state: string; postalCode: string; formattedAddress: string;
       }>(`/tenants/${tenantId}/settings/reverse-geocode`,
         mutation("POST", { latitude, longitude }));
+      // O GPS informa posição; o CEP sugerido pelo mapa pode ser do imóvel vizinho.
+      // Preserve os dados já preenchidos, sobretudo o CEP e o número comercial.
+      const previousCep = (value?.postalCode ?? "").replace(/\D/g, "");
+      const suggestedCep = address.postalCode.replace(/\D/g, "");
+      let verifiedCep = "";
+      if (!previousCep && suggestedCep.length === 8) {
+        try {
+          const response = await fetch(`https://viacep.com.br/ws/${suggestedCep}/json/`);
+          const details = await response.json() as { erro?: boolean; localidade?: string; uf?: string };
+          const expectedCity = (value?.city ?? address.city).trim();
+          const expectedState = (value?.state ?? address.state).trim().toUpperCase();
+          if (response.ok && !details.erro && details.localidade && details.uf &&
+              (!expectedCity || sameCity(expectedCity, details.localidade)) &&
+              (!expectedState || expectedState === details.uf)) verifiedCep = suggestedCep;
+        } catch { /* CEP do mapa não foi verificado e não deve ser preenchido. */ }
+      }
       setValue(current => current ? {
         ...current, latitude, longitude,
-        street: address.street || null,
-        streetNumber: address.streetNumber || null,
-        neighborhood: address.neighborhood || null,
-        city: address.city || null,
-        state: address.state || null,
-        postalCode: address.postalCode || null,
+        street: current.street?.trim() || address.street || null,
+        streetNumber: current.streetNumber?.trim() || address.streetNumber || null,
+        neighborhood: current.neighborhood?.trim() || address.neighborhood || null,
+        city: current.city?.trim() || address.city || null,
+        state: current.state?.trim() || address.state || null,
+        postalCode: current.postalCode?.trim() || verifiedCep || null,
       } : current);
       const missing = [
-        !address.street && "rua",
-        !address.streetNumber && "número",
-        !address.city && "cidade",
-        !address.state && "UF",
+        !(value?.street || address.street) && "rua",
+        !(value?.streetNumber || address.streetNumber) && "número",
+        !(value?.city || address.city) && "cidade",
+        !(value?.state || address.state) && "UF",
       ].filter(Boolean).join(", ");
       const uncertain = accuracy !== undefined && accuracy > 50
         ? " O GPS tem precisão aproximada; confira o ponto no mapa." : "";
+      const cepNotice = previousCep && suggestedCep && previousCep !== suggestedCep
+        ? ` O mapa sugeriu ${formatPostalCode(suggestedCep)}, mas mantivemos o CEP informado: ${formatPostalCode(previousCep)}.`
+        : !previousCep && suggestedCep && !verifiedCep
+          ? " Não foi possível confirmar o CEP sugerido pelo mapa; preencha o CEP correto manualmente."
+          : "";
       setMapMessage(missing
-        ? `Endereço parcialmente preenchido. Confira e informe: ${missing}.${uncertain}`
-        : `Endereço preenchido automaticamente. Confira os dados e clique em Salvar alterações.${uncertain}`);
+        ? `Localização recebida. Confira e informe: ${missing}.${cepNotice}${uncertain}`
+        : `Localização recebida. Revise os dados e salve.${cepNotice}${uncertain}`);
     } catch {
       setMapMessage("Pin localizado, mas não foi possível consultar o endereço. Preencha os campos manualmente e salve.");
       setError("A busca do endereço não está disponível no momento. Suas coordenadas foram mantidas.");
@@ -240,7 +286,7 @@ export default function TenantSettingsPage() {
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-xs font-semibold text-[#52574f]">CEP
                 <input inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000"
-                  className={fieldClass+" mt-2"} value={value.postalCode ?? ""}
+                  className={fieldClass+" mt-2"} value={formatPostalCode(value.postalCode ?? "")}
                   onChange={e=>changeAddress({postalCode:e.target.value.replace(/\D/g,"").slice(0,8)})}/>
               </label>
               <button type="button" disabled={locating} onClick={()=>void findPostalCode()}
