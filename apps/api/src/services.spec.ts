@@ -45,7 +45,7 @@ test("serviço sem profissionais selecionados é vinculado ao proprietário", as
   const tx = {
     tenant: { findUnique: async () => ({ ownerId: "owner-a" }) },
     membership: {
-      findUnique: async () => ({ id: ownerMembershipId, isActive: true }),
+      findUnique: async () => ({ id: ownerMembershipId, isActive: true, appearsInAgenda: true }),
       findMany: async () => [{ id: ownerMembershipId }],
     },
     service: {
