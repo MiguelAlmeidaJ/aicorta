@@ -209,6 +209,7 @@ model Membership {
   tenantId         String            @db.Uuid
   role             TenantRole
   isActive         Boolean           @default(true)
+  appearsInAgenda  Boolean           @default(true)
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   services         EmployeeService[]
