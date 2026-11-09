@@ -14,11 +14,11 @@ type Establishment = {
 
 // Fotos de ambientação, nunca apresentadas como imagens reais das barbearias cadastradas.
 const editorialCovers = [
-  "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=950&q=80",
+  "https://images.unsplash.com/photo-1703792686658-24e62d626ed2?auto=format&fit=crop&w=950&q=80",
   "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=950&q=80",
-  "https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=950&q=80",
+  "https://images.unsplash.com/photo-1621747650384-6e944e454a54?auto=format&fit=crop&w=950&q=80",
 ];
-const heroPhoto = "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1450&q=85";
+const heroPhoto = "https://images.unsplash.com/photo-1703792686658-24e62d626ed2?auto=format&fit=crop&w=1450&q=85";
 
 function locationLabel(item: Establishment) {
   const city = [item.city, item.state].filter(Boolean).join(" / ");
