@@ -55,6 +55,7 @@ export class PublicBookingService {
       return {
         id: tenant.id, name: tenant.name, slug: tenant.slug,
         city: tenant.city, state: tenant.state, neighborhood: tenant.neighborhood,
+        hasCustomCover: Boolean(tenant.coverMime),
         coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : defaultCover ??
           (fallback ? `/tenants/${tenant.id}/services/${fallback.id}/image?v=${fallback.updatedAt.getTime()}` : null),
       };
