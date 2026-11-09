@@ -66,7 +66,7 @@ export function fromGoogle(result: { formatted_address?: string; address_compone
 const cache = new Map<string, { expiry: number; value: ReverseAddress }>();
 let nextOsmRequestAt = 0;
 let osmQueue: Promise<void> = Promise.resolve();
-function reserveOsmSlot() {
+export function reserveOsmSlot() {
   const current = osmQueue;
   let release!: () => void;
   osmQueue = new Promise<void>(resolve => { release = resolve; });
@@ -127,4 +127,92 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
   if (cache.size >= 500) cache.delete(cache.keys().next().value!);
   cache.set(cacheKey,{expiry:Date.now()+24*60*60*1000,value});
   return value;
+}
+
+export type LocatedAddress = {
+  latitude: number; longitude: number; formattedAddress: string;
+  precision: string; source: "google" | "openstreetmap";
+};
+type ForwardAddress = {
+  street: string; streetNumber: string; city: string; state: string;
+  neighborhood?: string; postalCode?: string;
+};
+function simplified(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/\b(rua|avenida|av|travessa|r)\b/g, "").replace(/[^a-z0-9]+/g," ").trim();
+}
+function hasMatchingCityAndStreet(address: {
+  road?: string; pedestrian?: string; city?: string; town?: string;
+  municipality?: string; village?: string; state?: string; state_code?: string;
+}, requested: ForwardAddress) {
+  const road = simplified(address.road ?? address.pedestrian ?? "");
+  const expectedStreet = simplified(requested.street);
+  const city = simplified(address.city ?? address.town ?? address.municipality ?? address.village ?? "");
+  const state = brazilianState(address.state_code ?? address.state);
+  return !!road && !!expectedStreet && !!city &&
+    (road.includes(expectedStreet) || expectedStreet.includes(road) ||
+      (road.length > 6 && road.slice(0,road.length-1) === expectedStreet.slice(0,road.length-1))) &&
+    city === simplified(requested.city) && state === requested.state;
+}
+
+/** Retorna apenas resultados localizados na rua e cidade solicitadas; nunca o centro da cidade. */
+export async function locateBrazilianAddress(dto: ForwardAddress): Promise<LocatedAddress> {
+  const key = process.env.GOOGLE_GEOCODING_API_KEY;
+  if (key) {
+    const parts = [dto.street + ", " + dto.streetNumber, dto.neighborhood, dto.city,
+      dto.state, "Brasil"].filter(Boolean).join(", ");
+    try {
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${new URLSearchParams({
+        address:parts,key,language:"pt-BR",region:"br",
+      })}`,{signal:AbortSignal.timeout(7000)});
+      if (!response.ok) throw new Error("Google Geocoding indisponível");
+      const payload = await response.json() as {results?:Array<{
+        formatted_address:string; geometry:{location:{lat:number;lng:number};location_type:string};
+        address_components:GoogleComponent[];
+      }>};
+      const matches = (payload.results ?? []).filter(item => {
+        const get = (type:string) => item.address_components.find(c=>c.types.includes(type));
+        return get("country")?.short_name === "BR" &&
+          brazilianState(get("administrative_area_level_1")?.short_name) === dto.state &&
+          simplified(get("locality")?.long_name ?? get("administrative_area_level_2")?.long_name ?? "") === simplified(dto.city) &&
+          simplified(get("route")?.long_name ?? "") === simplified(dto.street) &&
+          Number.isFinite(item.geometry.location.lat) && Number.isFinite(item.geometry.location.lng);
+      });
+      const point = matches.find(item => item.geometry.location.location_type === "ROOFTOP") ?? matches[0];
+      if (point) return {
+        latitude:point.geometry.location.lat,longitude:point.geometry.location.lng,
+        formattedAddress:point.formatted_address,precision:point.geometry.location.location_type,
+        source:"google",
+      };
+    } catch { /* Fallback para a base cartográfica pública com rate limit. */ }
+  }
+  const requests = [
+    [dto.street + " " + dto.streetNumber, dto.city, dto.state, "Brasil"].join(", "),
+    [dto.street, dto.city, dto.state, "Brasil"].join(", "),
+  ];
+  for (const query of requests) {
+    await reserveOsmSlot();
+    const params = new URLSearchParams({q:query,format:"jsonv2",addressdetails:"1",
+      countrycodes:"br",limit:"5","accept-language":"pt-BR"});
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`,{
+        headers:{"User-Agent":"AICorta/1.0 (barbershop administration; https://github.com/MiguelAlmeidaJ/aicorta)",
+          "Accept-Language":"pt-BR"},
+        signal:AbortSignal.timeout(7000),
+      });
+      if (!response.ok) throw new Error("Pesquisa indisponível");
+      const items = await response.json() as Array<{
+        lat:string;lon:string;display_name:string;address:Record<string,string>;
+      }>;
+      const matched = items.find(item => item.address && hasMatchingCityAndStreet(item.address,dto));
+      if (matched) return {
+        latitude:Number(matched.lat),longitude:Number(matched.lon),
+        formattedAddress:matched.display_name,
+        precision:matched.address.house_number === dto.streetNumber ? "ROOFTOP" : "APPROXIMATE",
+        source:"openstreetmap",
+      };
+    } catch { /* Uma tentativa adicional sem o número pode localizar a rua. */ }
+  }
+  throw new BadRequestException(
+    "Não encontramos essa rua e número com segurança. Confira a cidade/UF ou clique no ponto exato do mapa.");
 }
