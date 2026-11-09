@@ -178,7 +178,7 @@ export async function locateBrazilianAddress(dto: ForwardAddress): Promise<Locat
           simplified(get("route")?.long_name ?? "") === simplified(dto.street) &&
           Number.isFinite(item.geometry.location.lat) && Number.isFinite(item.geometry.location.lng);
       });
-      const point = matches.find(item => item.geometry.location.location_type === "ROOFTOP") ?? matches[0];
+      const point = matches.find(item => item.geometry.location_type === "ROOFTOP") ?? matches[0];
       if (point) return {
         latitude:point.geometry.location.lat,longitude:point.geometry.location.lng,
         formattedAddress:point.formatted_address,precision:point.geometry.location.location_type,
