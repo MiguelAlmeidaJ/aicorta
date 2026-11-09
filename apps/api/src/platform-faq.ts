@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Injectable, Put, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Injectable, Put, UseGuards } from "@nestjs/common";
 import { Type } from "class-transformer";
 import { ArrayMaxSize, IsArray, IsBoolean, IsString, MaxLength, MinLength, ValidateNested } from "class-validator";
 import { PrismaService } from "./prisma.service";
@@ -39,6 +39,9 @@ export class PlatformFaqService {
     const prepared = items.map((item, position) => ({
       question: item.question.trim(), answer: item.answer.trim(), isActive: item.isActive, position,
     }));
+    if (prepared.some(item => item.question.length < 5 || item.answer.length < 5)) {
+      throw new BadRequestException("Cada pergunta e resposta deve ter pelo menos cinco caracteres.");
+    }
     await this.db.$transaction(async tx => {
       await tx.platformFaq.deleteMany();
       if (prepared.length) await tx.platformFaq.createMany({ data: prepared });
