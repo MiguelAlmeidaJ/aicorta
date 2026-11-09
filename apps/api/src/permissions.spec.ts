@@ -18,7 +18,7 @@ test("ADMIN ativo pode operar somente o próprio estabelecimento", async () => {
   const db = { membership: { findUnique: async ({ where }: { where: { userId_tenantId: { tenantId: string } } }) =>
     where.userId_tenantId.tenantId === "tenant-a"
       ? { role: "ADMIN", isActive: true, tenant: { status: "ACTIVE" } } : null } };
-  const guard = new TenantRoleGuard(db as never, reflector);
+  const guard = new TenantRoleGuard(db as never, reflector, { refreshTenantState: async () => ({ operational: true }) } as never);
   assert.equal(await guard.canActivate(ctx("tenant-a")), true);
   await assert.rejects(() => guard.canActivate(ctx("tenant-b")), ForbiddenException);
 });
@@ -30,7 +30,7 @@ test("funcionário e estabelecimento suspenso não gerenciam serviços", async (
     { role: "ADMIN", isActive: false, tenant: { status: "ACTIVE" } },
   ]) {
     const db = { membership: { findUnique: async () => membership } };
-    const guard = new TenantRoleGuard(db as never, reflector);
+    const guard = new TenantRoleGuard(db as never, reflector, { refreshTenantState: async () => ({ operational: membership.tenant.status === "ACTIVE" }) } as never);
     await assert.rejects(() => guard.canActivate(ctx("tenant-a")), ForbiddenException);
   }
 });

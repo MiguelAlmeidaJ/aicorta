@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
-  ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
+  AlertTriangle, CircleDollarSign, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
   UsersRound, UserRoundPlus, WalletCards, X, type LucideIcon,
 } from "lucide-react";
 import { apiJson } from "../../lib/api";
@@ -14,6 +14,8 @@ import { UserMenu } from "../auth/user-menu";
 type Membership = { tenantId: string; role: string; tenant: { name: string; slug: string; status: string } };
 type Profile = { id: string; name: string; username: string; avatarUrl: string | null; globalRole: string; memberships: Membership[] };
 type Item = { title: string; href: string; icon: LucideIcon; exact?: boolean };
+type BillingSummary = { status: string; suspensionReason: string | null; pendingCount: number; overdueCount: number;
+  monthlyFees: { id: string; competence: string; amountCents: number; dueOn: string; status: string }[] };
 
 export function DashboardShell({ children, mode, tenantId }: {
   children: ReactNode; mode: "system" | "tenant"; tenantId?: string;
@@ -25,21 +27,26 @@ export function DashboardShell({ children, mode, tenantId }: {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSwitch, setShowSwitch] = useState(false);
   const [error, setError] = useState("");
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
   const membership = profile?.memberships.find(item => item.tenantId === tenantId);
   const base = mode === "system" ? "/system" : `/painel/barbearias/${tenantId}`;
 
   useEffect(() => {
     let alive = true;
-    apiJson<Profile>("/auth/me").then(result => {
+    const profileRequest = apiJson<Profile>("/auth/me");
+    const billingRequest = mode === "tenant" && tenantId ?
+      apiJson<BillingSummary>(`/tenants/${tenantId}/billing`).catch(() => null) : Promise.resolve(null);
+    Promise.all([profileRequest, billingRequest]).then(([result, billingResult]) => {
       if (!alive) return;
       if (mode === "system" && result.globalRole !== "SYSTEM") {
         router.replace("/painel"); return;
       }
       if (mode === "tenant" && !result.memberships.some(m =>
-        m.tenantId === tenantId && ["ADMIN", "EMPLOYEE"].includes(m.role) && m.tenant.status === "ACTIVE")) {
+        m.tenantId === tenantId && ["ADMIN", "EMPLOYEE"].includes(m.role))) {
         router.replace("/painel"); return;
       }
       setProfile(result);
+      setBilling(billingResult);
       setBusy(false);
     }).catch(() => {
       if (alive) { setError("Não foi possível carregar sua sessão."); setBusy(false); }
@@ -55,6 +62,7 @@ export function DashboardShell({ children, mode, tenantId }: {
   const systemItems: Item[] = [
     { title: "Visão geral", href: "/system", icon: LayoutDashboard, exact: true },
     { title: "Barbearias", href: "/system/barbearias", icon: Scissors },
+    { title: "Mensalidades", href: "/system/mensalidades", icon: CircleDollarSign },
     { title: "Convites", href: "/system/convites", icon: UserRoundPlus },
     { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2, exact: true },
     { title: "Padronização de imagens", href: "/system/configuracoes/imagens", icon: ImageIcon },
@@ -74,7 +82,7 @@ export function DashboardShell({ children, mode, tenantId }: {
   const current = items.find(item => item.exact ? pathname === item.href : pathname.startsWith(item.href + "/") || pathname === item.href);
   const currentTitle = pathname.endsWith("/minha-conta") ? "Minha conta" : current?.title ?? "Painel";
   const availableMemberships = profile?.memberships.filter(m =>
-    ["ADMIN", "EMPLOYEE"].includes(m.role) && m.tenant.status === "ACTIVE") ?? [];
+    ["ADMIN", "EMPLOYEE"].includes(m.role)) ?? [];
   const canSwitchWorkspace = availableMemberships.length > 1;
 
   if (busy) return <div className="flex min-h-screen items-center justify-center bg-[#f6f7f4]">
@@ -160,7 +168,24 @@ export function DashboardShell({ children, mode, tenantId }: {
           <UserMenu profile={profile} loginHref="/admin/login"/>
         </div>
       </header>
-      <main className="mx-auto max-w-[1560px] px-5 py-7 sm:px-8 lg:px-10 lg:py-9">{children}</main>
+      <main className="mx-auto max-w-[1560px] px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
+        {mode === "tenant" && billing?.pendingCount ? <section role={billing.overdueCount ? "alert" : "status"}
+          className={`mb-6 rounded-2xl border p-5 ${billing.overdueCount ? "border-[#e7c6c2] bg-[#fbefed] text-[#7e3833]" : "border-[#eadfab] bg-[#fff9df] text-[#67571e]"}`}>
+          <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0" size={20}/><div>
+            <p className="text-sm font-bold">{billing.overdueCount ? "Acesso suspenso por mensalidade em atraso" : "Mensalidade pendente"}</p>
+            <p className="mt-1 text-xs leading-5">{billing.overdueCount ?
+              "Regularize diretamente com a administração da plataforma. Seus dados permanecem preservados e o acesso volta após a confirmação." :
+              `${billing.pendingCount} competência(s) aguardando confirmação. O pagamento é feito diretamente ao administrador, fora do sistema.`}</p>
+          </div></div>
+        </section> : null}
+        {mode === "tenant" && billing?.status === "SUSPENDED" ? <section className="rounded-[22px] border border-[#e2e4de] bg-white p-8 text-center">
+          <CircleDollarSign className="mx-auto text-[#8b6d20]" size={34}/>
+          <h1 className="mt-4 text-2xl font-bold">Estabelecimento temporariamente suspenso</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#747a71]">{billing.suspensionReason === "BILLING" ?
+            "Após a regularização e a confirmação pelo administrador SYSTEM, a reativação acontece automaticamente sem perda de dados." :
+            "O acesso foi suspenso pela administração. Entre em contato com o responsável pela plataforma."}</p>
+        </section> : children}
+      </main>
       <footer className="mx-auto max-w-[1560px] px-5 pb-8 text-[11px] text-[#a2a69f] sm:px-8 lg:px-10">© AICorta · Painel administrativo</footer>
     </div>
   </div>;

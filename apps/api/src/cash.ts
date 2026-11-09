@@ -1,7 +1,8 @@
 import {
   BadRequestException, Body, ConflictException, Controller, Get, Injectable, Param,
-  Patch, Post, Query, Req, UseGuards,
+  Patch, Post, Query, Req, Res, UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { Type } from "class-transformer";
 import {
   ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString,
@@ -249,7 +250,9 @@ export class CashController {
   constructor(private readonly cash: CashService) {}
 
   @TenantRoles("ADMIN", "EMPLOYEE") @Get("cash-sessions/current")
-  current(@Param("tenantId") tenantId: string) { return this.cash.current(tenantId); }
+  async current(@Param("tenantId") tenantId: string, @Res() response: Response) {
+    response.json(await this.cash.current(tenantId));
+  }
 
   @TenantRoles("ADMIN", "EMPLOYEE") @Get("cash-sessions")
   history(@Param("tenantId") tenantId: string, @Query() query: CashHistoryQueryDto) {

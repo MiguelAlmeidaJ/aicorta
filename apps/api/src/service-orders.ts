@@ -107,7 +107,7 @@ export class ServiceOrderService {
             clientId: appointment.clientId, createdById: actorUserId,
             subtotalCents, totalCents: subtotalCents,
             items: { create: services.map(service => ({
-              tenantId, serviceId: service.id, source: "APPOINTMENT" as const,
+              serviceId: service.id, source: "APPOINTMENT" as const,
               description: service.name, quantity: 1, unitPriceCents: service.priceCents,
               totalCents: service.priceCents,
             })) },

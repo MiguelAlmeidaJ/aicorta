@@ -121,7 +121,7 @@ export function ServiceForm({ tenantId, serviceId }: { tenantId: string; service
           <div className="mb-6"><h2 className="text-base font-bold">Foto do serviço</h2>
             <p className="mt-1 text-xs leading-5 text-[#8b9088]">A imagem será recortada para 1080 × 1080 e comprimida para no máximo 500 KB.</p></div>
           {existingImage && !imageDataUrl ? <div className="mb-5 flex items-center gap-4 rounded-xl bg-[#f4f5f1] p-3">
-            <img width={80} height={80} src={`${API_URL}${existingImage}`} alt="Foto atual do serviço" className="h-20 w-20 rounded-lg object-cover"/>
+            <img width={80} height={80} src={`${API_URL}${existingImage}`} alt="Foto atual do serviço" className="h-20 w-20 rounded-2xl object-cover"/>
             <div><p className="text-sm font-semibold">Foto atual</p><p className="mt-1 text-xs text-[#858b82]">Selecione outra imagem abaixo para substituir.</p></div>
           </div> : null}
           <ServiceImageCrop onChange={handleImage}/>

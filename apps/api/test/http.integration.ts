@@ -26,6 +26,7 @@ let ownerCookie = "";
 let secondOwnerCookie = "";
 let clientCookie = "";
 let otherClientCookie = "";
+let concurrentClientCookie = "";
 let employeeCookie = "";
 let tenantA = "";
 let tenantB = "";
@@ -196,7 +197,7 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       serviceIds: [serviceId],
     }, ownerCookie);
     assert.equal(assign.status, 200, JSON.stringify(assign.json));
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       const userDto = {
         name: `Cliente E2E ${i}`, username: `client${suffix.slice(0, 7)}${i}`,
         email: `client-${suffix}-${i}@example.test`, whatsapp: makePhone(i + 3),
@@ -208,7 +209,8 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       if (i === 0) {
         clientCookie = cookies(created.headers);
         clientId = (created.json.user as { id: string }).id;
-      } else otherClientCookie = cookies(created.headers);
+      } else if (i === 1) otherClientCookie = cookies(created.headers);
+      else concurrentClientCookie = cookies(created.headers);
     }
     assert.equal((await request("GET", `/api/tenants/${tenantA}/services/manage`, undefined, clientCookie)).status, 403);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/agenda/hours`, undefined, clientCookie)).status, 403);
@@ -251,17 +253,17 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.ok(slots.length > 0, "Configuração deve produzir horários disponíveis");
     const payload = { serviceId, employeeMembershipId: ownerMembershipA, startsAt: slots[0] };
     const [a, b] = await Promise.all([
-      request("POST", `/api/b/${slugA}/bookings`, payload, clientCookie),
       request("POST", `/api/b/${slugA}/bookings`, payload, otherClientCookie),
+      request("POST", `/api/b/${slugA}/bookings`, payload, concurrentClientCookie),
     ]);
-    assert.deepEqual([a.status, b.status].sort(), [201, 409]);
+    assert.deepEqual([a.status, b.status].sort(), [201, 409], JSON.stringify({ a, b }));
     const count = await db.appointment.count({
       where: { tenantId: tenantA, employeeMembershipId: ownerMembershipA,
         startsAt: new Date(slots[0]), status: { in: ["PENDING", "CONFIRMED"] } },
     });
     assert.equal(count, 1);
     const accepted = a.status === 201 ? a : b;
-    const acceptedCookie = a.status === 201 ? clientCookie : otherClientCookie;
+    const acceptedCookie = a.status === 201 ? otherClientCookie : concurrentClientCookie;
     const bookingId = String(accepted.json.id);
     assert.equal((await request("PATCH", `/api/tenants/${tenantB}/appointments/${bookingId}/confirm`,
       undefined, secondOwnerCookie)).status, 409);
@@ -269,10 +271,10 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       `/api/tenants/${tenantA}/appointments/${bookingId}/confirm`, undefined, ownerCookie);
     assert.equal(confirmed.status, 200);
     const forbiddenCancel = await request("PATCH", `/api/b/${slugA}/bookings/${bookingId}/cancel`,
-      undefined, acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
+      undefined, acceptedCookie === otherClientCookie ? concurrentClientCookie : otherClientCookie);
     assert.equal(forbiddenCancel.status, 403);
     const forbiddenReschedule = await request("PATCH", `/api/b/${slugA}/bookings/${bookingId}/reschedule`,
-      { startsAt: slots[0] }, acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
+      { startsAt: slots[0] }, acceptedCookie === otherClientCookie ? concurrentClientCookie : otherClientCookie);
     assert.equal(forbiddenReschedule.status, 403);
     const mine = await request("GET", "/api/my/bookings", undefined, acceptedCookie);
     assert.equal(mine.status, 200);
@@ -283,10 +285,10 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       undefined, acceptedCookie);
     assert.equal(cancel.status, 200);
     const reuse = await request("POST", `/api/b/${slugA}/bookings`, payload,
-      acceptedCookie === clientCookie ? otherClientCookie : clientCookie);
+      acceptedCookie === otherClientCookie ? concurrentClientCookie : otherClientCookie);
     assert.equal(reuse.status, 201);
     const reusedId = String(reuse.json.id);
-    const reusedCookie = acceptedCookie === clientCookie ? otherClientCookie : clientCookie;
+    const reusedCookie = acceptedCookie === otherClientCookie ? concurrentClientCookie : otherClientCookie;
     const nextDay = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
     const nextAvailability = await request("GET",
       `/api/b/${slugA}/slots?serviceId=${serviceId}&membershipId=${ownerMembershipA}&date=${nextDay}`);

@@ -13,6 +13,16 @@ function png(width: number, height: number) {
   return `data:image/png;base64,${bytes.toString("base64")}`;
 }
 
+function webp(width: number, height: number) {
+  const bytes = Buffer.alloc(30);
+  bytes.write("RIFF", 0, "ascii"); bytes.writeUInt32LE(22, 4); bytes.write("WEBPVP8X", 8, "ascii");
+  const write24 = (offset: number, value: number) => {
+    bytes[offset] = value & 0xff; bytes[offset + 1] = value >> 8 & 0xff; bytes[offset + 2] = value >> 16 & 0xff;
+  };
+  write24(24, width - 1); write24(27, height - 1);
+  return `data:image/webp;base64,${bytes.toString("base64")}`;
+}
+
 test("foto de serviço precisa ter exatamente 1080 × 1080", () => {
   assert.equal(parseServiceImage(png(1080, 1080)).mime, "image/png");
   assert.throws(() => parseServiceImage(png(1200, 1080)), BadRequestException);
@@ -21,6 +31,12 @@ test("foto de serviço precisa ter exatamente 1080 × 1080", () => {
 test("capa da barbearia precisa resultar em 1280 × 520", () => {
   assert.equal(parseTenantCover(png(1280, 520)).mime, "image/png");
   assert.throws(() => parseTenantCover(png(1080, 1080)), BadRequestException);
+});
+
+test("WEBP com transparência é aceito para serviços e capas", () => {
+  assert.equal(parseServiceImage(webp(1080, 1080)).mime, "image/webp");
+  assert.equal(parseTenantCover(webp(1280, 520)).mime, "image/webp");
+  assert.throws(() => parseTenantCover(webp(1280, 519)), BadRequestException);
 });
 
 test("serviço sem profissionais selecionados é vinculado ao proprietário", async () => {

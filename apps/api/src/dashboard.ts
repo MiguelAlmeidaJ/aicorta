@@ -102,7 +102,7 @@ export class DashboardService {
 
   async setTenantStatus(id: string, status: "ACTIVE" | "SUSPENDED") {
     return this.db.tenant.update({
-      where: { id }, data: { status },
+      where: { id }, data: { status, suspensionReason: status === "SUSPENDED" ? "MANUAL" : null },
       select: { id: true, name: true, status: true },
     });
   }

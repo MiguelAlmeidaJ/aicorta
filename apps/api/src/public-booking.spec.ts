@@ -40,7 +40,7 @@ test("consulta pública limita tenant a estabelecimento ativo", async () => {
   const db = { tenant: { findFirst: async (args: { where: unknown }) => {
     where = args.where; return { id: "tenant", name: "Barbearia", slug: "barbearia", timezone: "America/Sao_Paulo" };
   } } };
-  const service = new PublicBookingService(db as never, {} as never, {} as never);
+  const service = new PublicBookingService(db as never, {} as never, {} as never, { refreshTenantState: async () => ({ operational: true }) } as never);
   await service.tenant("barbearia");
   assert.deepEqual(where, { slug: "barbearia", status: "ACTIVE" });
 });
@@ -51,7 +51,7 @@ test("agendamento público preserva todos os serviços selecionados", async () =
     id: "tenant", name: "Barbearia", slug: "barbearia", timezone: "America/Sao_Paulo",
   }) } };
   const bookings = { create: async (_tenant: string, _user: string, dto: typeof received) => { received = dto; } };
-  const service = new PublicBookingService(db as never, {} as never, bookings as never);
+  const service = new PublicBookingService(db as never, {} as never, bookings as never, { refreshTenantState: async () => ({ operational: true }) } as never);
   await service.create("barbearia", "user-a", {
     serviceIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
     employeeMembershipId: "33333333-3333-4333-8333-333333333333", startsAt: "2027-03-01T12:00:00Z",

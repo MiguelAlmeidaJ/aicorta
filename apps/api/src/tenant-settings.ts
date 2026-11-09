@@ -8,8 +8,8 @@ import { imageDimensions } from "./services";
 
 const MAX_COVER_BYTES = 500 * 1024;
 export function parseTenantCover(dataUrl: string) {
-  const matched = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
-  if (!matched) throw new BadRequestException("A capa deve estar em PNG ou JPG");
+  const matched = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!matched) throw new BadRequestException("A capa deve estar em PNG, JPG ou WEBP");
   const decoded = Buffer.from(matched[2], "base64");
   if (!decoded.length || decoded.length > MAX_COVER_BYTES) throw new BadRequestException("A capa deve ter no máximo 500 KB");
   const dimensions = imageDimensions(decoded, matched[1]);

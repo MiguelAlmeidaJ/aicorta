@@ -24,6 +24,24 @@ enum TenantStatus {
   SUSPENDED
 }
 
+enum TenantSuspensionReason {
+  MANUAL
+  BILLING
+}
+
+enum MonthlyFeeStatus {
+  PENDING
+  PAID
+}
+
+enum BillingAuditAction {
+  CONFIG_UPDATED
+  COMPETENCY_CREATED
+  PAYMENT_CONFIRMED
+  AUTO_SUSPENDED
+  AUTO_REACTIVATED
+}
+
 enum AppointmentStatus {
   PENDING
   CONFIRMED
@@ -107,6 +125,8 @@ model User {
   cashMovements      CashMovement[]      @relation("CashMovementActor")
   receivedPayments   Payment[]           @relation("PaymentReceivedBy")
   voidedPayments     Payment[]           @relation("PaymentVoidedBy")
+  confirmedMonthlyFees MonthlyFee[]      @relation("MonthlyFeeConfirmedBy")
+  billingAuditEvents BillingAudit[]       @relation("BillingAuditActor")
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -117,7 +137,10 @@ model Tenant {
   slug                String               @unique
   timezone            String               @default("America/Sao_Paulo")
   billingDueDay       Int                  @default(10)
+  monthlyFeeCents     Int                  @default(0)
+  billingStartedAt    DateTime             @default(now())
   status              TenantStatus         @default(ACTIVE)
+  suspensionReason    TenantSuspensionReason?
   city                String?
   state               String?
   neighborhood        String?
@@ -136,10 +159,48 @@ model Tenant {
   cashSessions       CashSession[]
   cashMovements      CashMovement[]
   payments           Payment[]
+  monthlyFees        MonthlyFee[]
+  billingAuditEvents BillingAudit[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
   @@index([ownerId])
+}
+
+model MonthlyFee {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  competence    String
+  amountCents   Int
+  dueOn         String
+  overdueAt     DateTime
+  status        MonthlyFeeStatus @default(PENDING)
+  paidAt        DateTime?
+  confirmedById String?          @db.Uuid
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  confirmedBy   User?            @relation("MonthlyFeeConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  auditEvents   BillingAudit[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([tenantId, competence])
+  @@index([tenantId, status, overdueAt])
+}
+
+model BillingAudit {
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String             @db.Uuid
+  monthlyFeeId String?           @db.Uuid
+  actorUserId String?            @db.Uuid
+  action      BillingAuditAction
+  payload     Json?
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  monthlyFee  MonthlyFee?        @relation(fields: [monthlyFeeId], references: [id], onDelete: SetNull)
+  actor       User?              @relation("BillingAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([monthlyFeeId, createdAt])
 }
 
 model Membership {
@@ -363,7 +424,7 @@ model AppointmentService {
   nameSnapshot  String?
   priceCentsSnapshot Int?
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  service       Service     @relation(fields: [serviceId], references: [id])
+  service       Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   tenant        Tenant?     @relation(fields: [tenantId], references: [id])
   tenantId      String?     @db.Uuid
 

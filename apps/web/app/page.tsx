@@ -65,7 +65,7 @@ export default function HomePage() {
       {error && <p role="alert" className="rounded-xl bg-red-50 px-5 py-4 text-sm text-red-700">{error}</p>}
       {loading ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map(item => <div key={item} className="h-80 animate-pulse rounded-2xl bg-[#e5e7e1]"/>)}</div> :
       establishments.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{establishments.map(item => <article key={item.id} className="group overflow-hidden rounded-2xl border border-[#e1e3dc] bg-white shadow-[0_8px_28px_#00000008]">
-        <div className="relative aspect-[16/10] overflow-hidden bg-[#e9ebe5]">{item.coverUrl ? <img src={`${API_URL}${item.coverUrl}`} alt={`Capa de ${item.name}`} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"/> :
+        <div className="relative m-3 aspect-[16/10] overflow-hidden rounded-2xl bg-[#e9ebe5]">{item.coverUrl ? <img src={`${API_URL}${item.coverUrl}`} alt={`Capa de ${item.name}`} className="h-full w-full rounded-2xl object-cover transition duration-500 group-hover:scale-[1.03]"/> :
           <div className="flex h-full items-center justify-center"><Scissors size={34} className="text-[#92988e]"/></div>}</div>
         <div className="p-5"><h3 className="text-xl font-bold tracking-tight">{item.name}</h3><p className="mt-2 flex items-center gap-2 text-sm text-[#777d73]"><MapPin size={15} className="shrink-0"/>{locationLabel(item)}</p>
           <Link href={`/b/${item.slug}`} className="mt-5 flex items-center justify-between rounded-xl bg-[#171916] px-4 py-3 text-sm font-bold text-white hover:bg-[#30332d]">Ver estabelecimento <ArrowRight size={17}/></Link></div>

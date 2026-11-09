@@ -6,6 +6,7 @@ import { JwtAuthGuard } from "./auth";
 import { AgendaService } from "./agenda";
 import { BookingService } from "./booking";
 import { validDate } from "./scheduling-time";
+import { BillingService } from "./billing";
 
 export class PublicBookingDto {
   @IsOptional() @IsUUID() serviceId?: string;
@@ -18,12 +19,15 @@ export class RescheduleDto {
 }
 @Injectable()
 export class PublicBookingService {
-  constructor(private readonly db: PrismaService, private readonly agenda: AgendaService, private readonly bookings: BookingService) {}
+  constructor(private readonly db: PrismaService, private readonly agenda: AgendaService,
+    private readonly bookings: BookingService, private readonly billing: BillingService) {}
   async tenant(slug: string) {
     const tenant = await this.db.tenant.findFirst({ where: { slug, status: "ACTIVE" },
       select: { id: true, name: true, slug: true, timezone: true, city: true, state: true,
         neighborhood: true, coverMime: true, updatedAt: true } });
     if (!tenant) throw new BadRequestException("Barbearia não encontrada");
+    const financial = await this.billing.refreshTenantState(tenant.id);
+    if (!financial.operational) throw new BadRequestException("Barbearia temporariamente indisponível");
     return tenant;
   }
   async discover(query = "") {

@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { PrismaService } from "./prisma.service";
+import { BillingService } from "./billing";
 
 export type TenantPermission = "ADMIN" | "EMPLOYEE" | "CLIENT";
 export const TENANT_ROLES = "aicorta:tenant-roles";
@@ -12,7 +13,8 @@ export const TenantRoles = (...roles: TenantPermission[]) => SetMetadata(TENANT_
  */
 @Injectable()
 export class TenantRoleGuard implements CanActivate {
-  constructor(private readonly db: PrismaService, private readonly reflector: Reflector) {}
+  constructor(private readonly db: PrismaService, private readonly reflector: Reflector,
+    private readonly billing: BillingService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const roles = this.reflector.getAllAndOverride<TenantPermission[]>(TENANT_ROLES, [
@@ -30,8 +32,12 @@ export class TenantRoleGuard implements CanActivate {
       where: { userId_tenantId: { userId, tenantId } },
       select: { role: true, isActive: true, tenant: { select: { status: true } } },
     });
-    if (!membership?.isActive || membership.tenant.status !== "ACTIVE" || !roles.includes(membership.role)) {
+    if (!membership?.isActive || !roles.includes(membership.role)) {
       throw new ForbiddenException("Sem permissão neste estabelecimento");
+    }
+    const financial = await this.billing.refreshTenantState(tenantId);
+    if (!financial.operational) {
+      throw new ForbiddenException(financial.overdue ? "Estabelecimento suspenso por mensalidade em atraso" : "Sem permissão neste estabelecimento");
     }
     return true;
   }

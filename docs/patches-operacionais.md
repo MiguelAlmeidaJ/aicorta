@@ -90,20 +90,26 @@ Estado: **em andamento**. Caixa, registros divididos, movimentos, estorno e fech
 
 Entrega: controle financeiro operacional confiavel.
 
-## Patch 09 - Comissoes e profissionais (P1)
+## Patch 09 - Mensalidades e suspensao automatica (P0)
 
-Estado: **nao iniciado**.
+Estado: **implementado e validado**.
 
-- [ ] Definir regra de comissao por servico, profissional e vigencia
-- [ ] Definir precedencia entre regras e snapshot no momento do fechamento
-- [ ] Calcular comissao somente sobre eventos financeiros elegiveis
-- [ ] Criar extrato por profissional e periodo
-- [ ] Registrar ajustes manuais com motivo, autor e auditoria
-- [ ] Fechar periodo de repasse de forma idempotente
-- [ ] Tratar estornos posteriores ao fechamento
-- [ ] Implementar permissoes especificas para visualizar, ajustar e fechar
-- [ ] Criar interface de regras, extrato e fechamento
-- [ ] Cobrir calculos, arredondamento, vigencia e isolamento entre tenants
+- [x] Cadastrar valor mensal, dia de vencimento e inicio contratual por barbearia
+- [x] Gerar competencias mensais sem cobranca bancaria ou gateway de pagamento
+- [x] Permitir confirmacao de pagamento somente ao SYSTEM
+- [x] Manter historico de competencias, pagamentos confirmados e atrasos
+- [x] Executar verificacao diaria no servidor, independente do dashboard
+- [x] Suspender automaticamente estabelecimentos inadimplentes
+- [x] Reativar apos regularizacao sem remover dados
+- [x] Exibir avisos de pendencia e suspensao no painel da barbearia
+- [x] Auditar configuracoes, confirmacoes e mudancas automaticas de situacao
+- [x] Considerar atraso somente apos o fim do dia em `America/Sao_Paulo`
+- [x] Ajustar vencimentos 29, 30 e 31 ao ultimo dia do mes
+- [x] Impedir competencias anteriores ao inicio do contrato
+- [x] Reconciliar a situacao financeira tambem durante a verificacao de acesso
+- [x] Manter suspensoes manuais separadas das suspensoes financeiras
+
+Entrega: gestao administrativa da mensalidade SaaS, sem processar pagamentos no sistema.
 
 ## Patch 10 - Gestao completa de clientes (P1)
 
@@ -157,7 +163,7 @@ Estado: **nao iniciado**. Recuperacao de senha por SMTP nao conta como mensagem 
 
 1. Concluir o gate e a homologacao do Patch 06.
 2. Modelar Patch 07 antes do Patch 08, pois o pagamento deve liquidar uma comanda fechada.
-3. Implementar Patch 08 antes de comissoes e relatorios financeiros.
-4. Executar Patches 09 e 10 sobre os eventos operacionais consolidados.
-5. Construir Patch 11 sobre pagamentos e comissoes, evitando relatorios baseados apenas em status de agenda.
+3. Implementar Patch 08 antes dos relatorios financeiros.
+4. Executar o Patch 10 sobre os eventos operacionais consolidados.
+5. Construir Patch 11 sobre pagamentos presenciais, evitando relatorios baseados apenas em status de agenda.
 6. Adicionar Patch 12 com outbox transacional para nao perder mensagens em falhas ou deploys.

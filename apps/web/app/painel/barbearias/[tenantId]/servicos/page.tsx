@@ -64,8 +64,8 @@ export default function ServicesPage() {
         description="Cadastre o primeiro serviço da sua barbearia para montar o catálogo."/> :
       <div className="divide-y divide-[#eceee8]">{shown.map(service =>
         <article key={service.id} className="grid gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[76px_minmax(0,1fr)_auto] sm:items-center">
-          <div className="relative h-[76px] w-[76px] overflow-hidden rounded-xl bg-[#eff0ec]">
-            {service.imageUrl ? <img src={`${API_URL}${service.imageUrl}`} alt="" className="h-full w-full object-cover"/> :
+          <div className="relative h-[76px] w-[76px] overflow-hidden rounded-2xl bg-[#eff0ec]">
+            {service.imageUrl ? <img src={`${API_URL}${service.imageUrl}`} alt="" className="h-full w-full rounded-2xl object-cover"/> :
               <span className="flex h-full w-full items-center justify-center text-[#777d73]"><Scissors size={21}/></span>}
           </div>
           <div className="min-w-0">

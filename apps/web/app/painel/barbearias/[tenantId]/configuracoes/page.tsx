@@ -68,9 +68,9 @@ export default function TenantSettingsPage() {
             <input maxLength={100} className={fieldClass + " mt-2"} value={value.neighborhood ?? ""} onChange={e => setValue({ ...value, neighborhood: e.target.value })}/></label>
           <div className="border-t border-[#eceee8] pt-6"><p className="text-xs font-semibold text-[#52574f]">Capa da barbearia</p>
             <p className="mb-4 mt-1 text-xs text-[#92978e]">A imagem aparece na busca e no topo da página pública.</p>
-            {value.coverUrl && coverDataUrl === undefined ? <div className="relative overflow-hidden rounded-xl">
+            {value.coverUrl && coverDataUrl === undefined ? <div className="relative overflow-hidden rounded-2xl bg-[#f1f2ee]">
               {/* eslint-disable-next-line @next/next/no-img-element -- imagem servida pela API */}
-              <img src={`${API_URL}${value.coverUrl}`} alt={`Capa atual de ${value.name}`} className="aspect-[1280/520] w-full object-cover"/>
+              <img src={`${API_URL}${value.coverUrl}`} alt={`Capa atual de ${value.name}`} className="aspect-[1280/520] w-full rounded-2xl object-cover"/>
               <button type="button" onClick={() => setCoverDataUrl(null)} className="absolute right-3 top-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-semibold shadow"><Trash2 size={14}/> Remover</button>
             </div> : coverDataUrl === null ? <button type="button" onClick={() => setCoverDataUrl(undefined)} className="text-xs font-semibold underline">Manter capa atual</button> :
               <TenantCoverCrop onChange={handleCoverChange}/>}

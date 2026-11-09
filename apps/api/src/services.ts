@@ -41,6 +41,24 @@ export function imageDimensions(bytes: Buffer, mime: string): { width: number; h
       offset += length;
     }
   }
+  if (mime === "image/webp" && bytes.length >= 30 &&
+      bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") {
+    const chunk = bytes.toString("ascii", 12, 16);
+    if (chunk === "VP8X") {
+      const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+      const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+      return { width, height };
+    }
+    if (chunk === "VP8 " && bytes[23] === 0x9d && bytes[24] === 0x01 && bytes[25] === 0x2a) {
+      return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff };
+    }
+    if (chunk === "VP8L" && bytes[20] === 0x2f) {
+      return {
+        width: 1 + bytes[21] + ((bytes[22] & 0x3f) << 8),
+        height: 1 + (bytes[22] >> 6) + (bytes[23] << 2) + ((bytes[24] & 0x0f) << 10),
+      };
+    }
+  }
   return null;
 }
 
@@ -48,8 +66,8 @@ export function parseServiceImage(dataUrl: string): { mime: string; bytes: Uint8
   if (typeof dataUrl !== "string" || dataUrl.length > Math.ceil(MAX_IMAGE_BYTES * 1.5) + 100) {
     throw new BadRequestException("A foto deve ter no máximo 500 KB");
   }
-  const matched = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
-  if (!matched) throw new BadRequestException("A foto deve estar em PNG ou JPG");
+  const matched = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!matched) throw new BadRequestException("A foto deve estar em PNG, JPG ou WEBP");
   const decoded = Buffer.from(matched[2], "base64");
   if (!decoded.length || decoded.length > MAX_IMAGE_BYTES) {
     throw new BadRequestException("A foto deve ter no máximo 500 KB");
