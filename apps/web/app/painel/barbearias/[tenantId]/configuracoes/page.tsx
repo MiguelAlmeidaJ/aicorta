@@ -28,6 +28,7 @@ type Settings = { id: string; name: string; slug: string; status: string; billin
 export default function TenantSettingsPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [value, setValue] = useState<Settings | null>(null);
+  const [original, setOriginal] = useState<Settings | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -37,31 +38,59 @@ export default function TenantSettingsPage() {
   useEffect(() => {
     let active = true;
     apiJson<Settings>(`/tenants/${tenantId}/settings`)
-      .then(data => { if (active) { setValue(data); setSavedSlug(data.slug); } })
-      .catch(e => { if (active) setError(e.message); });
+      .then(data => { if (active) { setValue(data); setOriginal(data); setSavedSlug(data.slug); } })
+      .catch(() => { if (active) setError("Não foi possível carregar as configurações. Atualize a página e tente novamente."); });
     return () => { active = false; };
   }, [tenantId]);
   async function save(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (!value) return;
-    const slug = value.slug.replace(/-+$/, "");
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3) {
+    e.preventDefault();
+    if (!value || !original || saving) return;
+    const slug = cleanSlug(value.slug).replace(/-+$/, "");
+    const name = value.name.trim();
+    if (slug !== original.slug && (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3)) {
       setError("Escolha um endereço de pelo menos 3 caracteres, usando letras, números ou hífens.");
       return;
     }
-    if (value.state?.trim() && !/^[A-Za-z]{2}$/.test(value.state.trim())) {
-      setError("O estado deve conter duas letras, como MG. Ou deixe em branco.");
-      return;
+    const patch: Record<string, string | null> = {};
+    if (name !== original.name) patch.name = name;
+    if (slug !== original.slug) patch.slug = slug;
+    if ((value.city ?? "").trim() !== (original.city ?? "")) patch.city = value.city?.trim() || null;
+    if ((value.neighborhood ?? "").trim() !== (original.neighborhood ?? "")) {
+      patch.neighborhood = value.neighborhood?.trim() || null;
+    }
+    const state = (value.state ?? "").trim().toUpperCase();
+    if (state !== (original.state ?? "")) {
+      if (state && !/^[A-Z]{2}$/.test(state)) {
+        setError("O estado deve conter duas letras, como MG. Ou deixe em branco.");
+        return;
+      }
+      patch.state = state || null;
     }
     setSaving(true); setError(""); setMessage("");
     try {
-      let saved = await apiJson<Settings>(`/tenants/${tenantId}/settings`,
-        mutation("PATCH", { name: value.name.trim(), slug, city: value.city?.trim() ?? "",
-          state: value.state?.trim() ?? "", neighborhood: value.neighborhood?.trim() ?? "" }));
-      if (coverDataUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, mutation("PUT", { imageDataUrl: coverDataUrl }));
-      else if (coverDataUrl === null && value.coverUrl) saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, { method: "DELETE" });
-      setValue(saved); setSavedSlug(saved.slug); setCoverDataUrl(undefined); setMessage("Configurações salvas com sucesso.");
-    } catch(e) { setError(friendlySettingsError(e)); }
-    finally { setSaving(false); }
+      let saved = original;
+      if (Object.keys(patch).length) {
+        saved = await apiJson<Settings>(`/tenants/${tenantId}/settings`, mutation("PATCH", patch));
+      }
+      if (coverDataUrl) {
+        saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`,
+          mutation("PUT", { imageDataUrl: coverDataUrl }));
+      } else if (coverDataUrl === null && original.coverUrl) {
+        saved = await apiJson<Settings>(`/tenants/${tenantId}/settings/cover`, { method: "DELETE" });
+      }
+      setValue(saved); setOriginal(saved); setSavedSlug(saved.slug);
+      setCoverDataUrl(undefined);
+      setMessage("Configurações salvas com sucesso.");
+    } catch (reason) {
+      setError(friendlySettingsError(reason));
+      // Evita pedir novamente o que já foi persistido quando a atualização da capa falhar.
+      if (Object.keys(patch).length) {
+        try {
+          const fresh = await apiJson<Settings>(`/tenants/${tenantId}/settings`);
+          setOriginal(fresh); setSavedSlug(fresh.slug);
+        } catch { /* Mantenha os dados editados se a conexão cair. */ }
+      }
+    } finally { setSaving(false); }
   }
   return <>
     <PageHeader kicker="Gestão / Preferências" title="Configurações"
