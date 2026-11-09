@@ -24,7 +24,8 @@ export class PublicBookingService {
   async tenant(slug: string) {
     const tenant = await this.db.tenant.findFirst({ where: { slug, status: "ACTIVE" },
       select: { id: true, name: true, slug: true, timezone: true, city: true, state: true,
-        neighborhood: true, coverMime: true, updatedAt: true } });
+        neighborhood: true, postalCode: true, street: true, streetNumber: true, complement: true,
+        latitude: true, longitude: true, coverMime: true, updatedAt: true } });
     if (!tenant) throw new BadRequestException("Barbearia não encontrada");
     const financial = await this.billing.refreshTenantState(tenant.id);
     if (!financial.operational) throw new BadRequestException("Barbearia temporariamente indisponível");
@@ -41,6 +42,7 @@ export class PublicBookingService {
       ] }) },
       select: {
         id: true, name: true, slug: true, city: true, state: true, neighborhood: true,
+        postalCode: true, street: true, streetNumber: true, complement: true, latitude: true, longitude: true,
         coverMime: true, updatedAt: true,
 
       },
@@ -53,6 +55,8 @@ export class PublicBookingService {
       return {
         id: tenant.id, name: tenant.name, slug: tenant.slug,
         city: tenant.city, state: tenant.state, neighborhood: tenant.neighborhood,
+        postalCode: tenant.postalCode, street: tenant.street, streetNumber: tenant.streetNumber,
+        complement: tenant.complement, latitude: tenant.latitude, longitude: tenant.longitude,
         hasCustomCover: Boolean(tenant.coverMime),
         coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : defaultCover,
       };

@@ -1,5 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Put, Res, UseGuards } from "@nestjs/common";
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import type { Response } from "express";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
@@ -26,13 +26,20 @@ export class UpdateTenantSettingsDto {
   @IsOptional() @IsString() @MaxLength(100) city?: string;
   @IsOptional() @IsString() @Matches(/^(?:[A-Za-z]{2})?$/, { message: "Informe uma UF válida com duas letras, como MG." }) state?: string;
   @IsOptional() @IsString() @MaxLength(100) neighborhood?: string;
+  @IsOptional() @IsString() @Matches(/^(?:[0-9]{8})?$/, { message: "Informe um CEP com oito dígitos." }) postalCode?: string;
+  @IsOptional() @IsString() @MaxLength(180) street?: string;
+  @IsOptional() @IsString() @MaxLength(20) streetNumber?: string;
+  @IsOptional() @IsString() @MaxLength(120) complement?: string;
+  @IsOptional() @IsNumber() @Min(-90) @Max(90) latitude?: number | null;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) longitude?: number | null;
 }
 
 export class UpdateTenantCoverDto { @IsString() imageDataUrl!: string; }
 
 const settingsSelect = {
   id: true, name: true, slug: true, timezone: true, status: true, billingDueDay: true,
-  city: true, state: true, neighborhood: true, coverMime: true, updatedAt: true,
+  city: true, state: true, neighborhood: true, postalCode: true, street: true,
+  streetNumber: true, complement: true, latitude: true, longitude: true, coverMime: true, updatedAt: true,
 } as const;
 
 @Injectable()
@@ -43,8 +50,14 @@ export class TenantSettingsService {
     return { ...tenant, coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : null };
   }
   async update(tenantId: string, dto: UpdateTenantSettingsDto) {
-    if (dto.name === undefined && dto.slug === undefined && dto.city === undefined &&
-        dto.state === undefined && dto.neighborhood === undefined) return this.details(tenantId);
+    if (Object.keys(dto).length === 0) return this.details(tenantId);
+    const hasLatitude = dto.latitude !== undefined;
+    const hasLongitude = dto.longitude !== undefined;
+    if (hasLatitude !== hasLongitude || (hasLatitude && ((dto.latitude === null) !== (dto.longitude === null)))) {
+      throw new BadRequestException("Informe latitude e longitude juntas ou limpe ambas.");
+    }
+    const addressChanged = ["city", "state", "neighborhood", "postalCode", "street", "streetNumber", "complement"]
+      .some(key => Object.prototype.hasOwnProperty.call(dto, key));
     try {
       await this.db.tenant.update({ where: { id: tenantId },
         data: { ...(dto.name !== undefined && { name: dto.name.trim() }),
@@ -52,6 +65,12 @@ export class TenantSettingsService {
           ...(dto.city !== undefined && { city: dto.city.trim() || null }),
           ...(dto.state !== undefined && { state: dto.state.trim().toUpperCase() || null }),
           ...(dto.neighborhood !== undefined && { neighborhood: dto.neighborhood.trim() || null }),
+          ...(dto.postalCode !== undefined && { postalCode: dto.postalCode.trim() || null }),
+          ...(dto.street !== undefined && { street: dto.street.trim() || null }),
+          ...(dto.streetNumber !== undefined && { streetNumber: dto.streetNumber.trim() || null }),
+          ...(dto.complement !== undefined && { complement: dto.complement.trim() || null }),
+          ...((hasLatitude && hasLongitude) && { latitude: dto.latitude, longitude: dto.longitude }),
+          ...(addressChanged && !hasLatitude && { latitude: null, longitude: null }),
         } });
       return this.details(tenantId);
     } catch (error) {

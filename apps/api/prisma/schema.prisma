@@ -144,6 +144,12 @@ model Tenant {
   city                String?
   state               String?
   neighborhood        String?
+  postalCode          String?
+  street              String?
+  streetNumber        String?
+  complement          String?
+  latitude            Float?
+  longitude           Float?
   cover               Bytes?
   coverMime           String?
   ownerId             String               @db.Uuid
@@ -537,4 +543,16 @@ model PlatformBrand {
   defaultProfileImage     Bytes?
   defaultProfileImageMime String?
   updatedAt               DateTime @updatedAt
+}
+
+model PlatformFaq {
+  id        String   @id @default(uuid()) @db.Uuid
+  question  String   @db.VarChar(220)
+  answer    String   @db.VarChar(3000)
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
 }
