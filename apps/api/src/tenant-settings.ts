@@ -24,7 +24,7 @@ export class UpdateTenantSettingsDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
   @IsOptional() @IsString() @MinLength(3) @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(50) slug?: string;
   @IsOptional() @IsString() @MaxLength(100) city?: string;
-  @IsOptional() @IsString() @Matches(/^[A-Za-z]{2}$/) state?: string;
+  @IsOptional() @IsString() @Matches(/^(?:[A-Za-z]{2})?$/, { message: "Informe uma UF válida com duas letras, como MG." }) state?: string;
   @IsOptional() @IsString() @MaxLength(100) neighborhood?: string;
 }
 
