@@ -20,6 +20,7 @@ import { BookingController, BookingService } from "./booking";
 import { ServiceOrderController, ServiceOrderService } from "./service-orders";
 import { CashController, CashService } from "./cash";
 import { BillingController, BillingSchedulerService, BillingService } from "./billing";
+import { PlatformFaqController, PlatformFaqService } from "./platform-faq";
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { BillingController, BillingSchedulerService, BillingService } from "./bi
       signOptions: { expiresIn: "15m" },
     }),
   ],
-  controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
+  controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
   providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
