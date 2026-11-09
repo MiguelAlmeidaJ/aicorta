@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { validate } from "class-validator";
-import { brazilianState, fromGoogle, fromOsm } from "./reverse-geocode";
+import { brazilianState, fromGoogle, fromOsm, locateBrazilianAddress } from "./reverse-geocode";
 import { ReverseGeocodeDto } from "./tenant-settings";
 
 test("geocodificação reversa transforma endereço do OpenStreetMap em campos brasileiros", () => {
@@ -70,4 +70,54 @@ test("coordenadas recebidas do navegador são validadas antes da consulta", asyn
   assert.ok((await validate(Object.assign(new ReverseGeocodeDto(), {
     latitude: 110, longitude: -185,
   }))).length === 2);
+});
+
+test("busca de endereço funciona sem chave Google e aceita grafia aproximada da rua", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousKey = process.env.GOOGLE_GEOCODING_API_KEY;
+  delete process.env.GOOGLE_GEOCODING_API_KEY;
+  const requests: string[] = [];
+  globalThis.fetch = async (input: string | URL | Request) => {
+    requests.push(String(input));
+    return new Response(JSON.stringify([{
+      lat:"-21.876",lon:"-42.703",display_name:"Rua Capitão Godói, Além Paraíba, MG, Brasil",
+      address:{ road:"Rua Capitão Godói", house_number:"250", city:"Além Paraíba",
+        state:"Minas Gerais", country_code:"br" },
+    }]),{status:200,headers:{"content-type":"application/json"}});
+  };
+  try {
+    const result = await locateBrazilianAddress({
+      street:"Rua Capitão Godoy",streetNumber:"250",city:"Além Paraíba",state:"MG",
+      postalCode:"36660000",
+    });
+    assert.equal(result.latitude,-21.876);
+    assert.equal(result.longitude,-42.703);
+    assert.equal(result.source,"openstreetmap");
+    assert.equal(result.precision,"ROOFTOP");
+    assert.equal(requests.length,1);
+    assert.ok(requests[0].includes("nominatim.openstreetmap.org/search"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousKey === undefined) delete process.env.GOOGLE_GEOCODING_API_KEY;
+    else process.env.GOOGLE_GEOCODING_API_KEY = previousKey;
+  }
+});
+
+test("busca rejeita resultados de outra cidade, mesmo que a rua tenha o mesmo nome", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousKey = process.env.GOOGLE_GEOCODING_API_KEY;
+  delete process.env.GOOGLE_GEOCODING_API_KEY;
+  globalThis.fetch = async () => new Response(JSON.stringify([{
+    lat:"-22.1",lon:"-43",display_name:"Rua Capitão Godoy, Rio de Janeiro, RJ",
+    address:{road:"Rua Capitão Godoy",city:"Rio de Janeiro",state:"Rio de Janeiro",country_code:"br"},
+  }]),{status:200,headers:{"content-type":"application/json"}});
+  try {
+    await assert.rejects(() => locateBrazilianAddress({
+      street:"Rua Capitão Godoy",streetNumber:"250",city:"Além Paraíba",state:"MG",
+    }), /Não encontramos essa rua e número/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousKey === undefined) delete process.env.GOOGLE_GEOCODING_API_KEY;
+    else process.env.GOOGLE_GEOCODING_API_KEY = previousKey;
+  }
 });
