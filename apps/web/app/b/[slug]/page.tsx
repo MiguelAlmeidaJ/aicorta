@@ -12,7 +12,7 @@ import { money } from "../../../components/dashboard/ui";
 
 type Service = { id: string; name: string; description: string | null; durationMinutes: number; priceCents: number; imageUrl: string | null };
 type Professional = { id: string; name: string; serviceIds: string[]; avatarUrl: string | null };
-type Catalog = { tenant: { id: string; name: string; slug: string; timezone: string; city: string | null; state: string | null; neighborhood: string | null; coverUrl: string | null }; services: Service[]; professionals: Professional[] };
+type Catalog = { tenant: { id: string; name: string; slug: string; timezone: string; city: string | null; state: string | null; neighborhood: string | null; street: string | null; streetNumber: string | null; complement: string | null; postalCode: string | null; latitude: number | null; longitude: number | null; coverUrl: string | null }; services: Service[]; professionals: Professional[] };
 type Slots = { slots: string[] };
 
 function localToday(zone: string) {
@@ -34,7 +34,12 @@ export default function PublicBarbershopPage() {
   const selectedServices = useMemo(() => catalog?.services.filter(item => serviceIds.includes(item.id)) ?? [], [catalog, serviceIds]);
   const total = selectedServices.reduce((sum, item) => sum + item.priceCents, 0); const duration = selectedServices.reduce((sum, item) => sum + item.durationMinutes, 0);
   const today = catalog ? localToday(catalog.tenant.timezone) : ""; const days = useMemo(() => today ? Array.from({ length: 7 }, (_, index) => plusDays(today, index)) : [], [today]);
-  const location = catalog ? [catalog.tenant.neighborhood, [catalog.tenant.city, catalog.tenant.state].filter(Boolean).join(" / ")].filter(Boolean).join(" · ") : "";
+  const location = catalog ? [[catalog.tenant.street, catalog.tenant.streetNumber].filter(Boolean).join(", "),
+    catalog.tenant.neighborhood, [catalog.tenant.city, catalog.tenant.state].filter(Boolean).join(" / ")]
+    .filter(Boolean).join(" · ") : "";
+  const directions = catalog?.tenant.latitude !== null && catalog?.tenant.longitude !== null &&
+    catalog?.tenant.latitude !== undefined && catalog?.tenant.longitude !== undefined
+    ? `https://www.google.com/maps/dir/?api=1&destination=${catalog.tenant.latitude},${catalog.tenant.longitude}` : null;
   const time = (iso: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: catalog?.tenant.timezone ?? "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 
   useEffect(() => {
@@ -71,7 +76,7 @@ export default function PublicBarbershopPage() {
     <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8"><Link href="/"><BrandLogo className="h-11 max-w-[200px]"/></Link><div className="flex items-center gap-4"><Link href="/meus-agendamentos" className="hidden text-xs font-semibold text-[#686e65] sm:block">Meus horários</Link><UserMenu/></div></header>
     <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8">
       <div className="relative aspect-[1280/520] min-h-[300px] overflow-hidden rounded-[28px] bg-[#f1f2ee] text-white">{catalog?.tenant.coverUrl ? <img src={`${API_URL}${catalog.tenant.coverUrl}`} alt="" className="absolute inset-0 h-full w-full rounded-[28px] object-cover"/> : null}<div className="absolute inset-0 rounded-[28px] bg-gradient-to-r from-black/90 via-black/55 to-transparent"/>
-        <div className="relative flex h-full max-w-3xl flex-col justify-center p-7 sm:p-12"><span className="w-fit rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.17em] text-[#f2c225]">Agendamento online</span><h1 className="mt-5 text-4xl font-bold tracking-[-.055em] sm:text-6xl">{catalog?.tenant.name ?? (loading ? "Carregando..." : "Indisponível")}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-white/70">Escolha quem vai atender você, monte seu atendimento e encontre o melhor horário.</p><div className="mt-6 flex flex-wrap gap-5 text-xs font-semibold text-white/80">{location ? <span className="flex items-center gap-2"><MapPin size={16} className="text-[#f2c225]"/>{location}</span> : null}<span className="flex items-center gap-2"><ShieldCheck size={16} className="text-[#f2c225]"/>Reserva segura</span></div></div>
+        <div className="relative flex h-full max-w-3xl flex-col justify-center p-7 sm:p-12"><span className="w-fit rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.17em] text-[#f2c225]">Agendamento online</span><h1 className="mt-5 text-4xl font-bold tracking-[-.055em] sm:text-6xl">{catalog?.tenant.name ?? (loading ? "Carregando..." : "Indisponível")}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-white/70">Escolha quem vai atender você, monte seu atendimento e encontre o melhor horário.</p><div className="mt-6 flex flex-wrap gap-5 text-xs font-semibold text-white/80">{location ? <span className="flex items-center gap-2"><MapPin size={16} className="text-[#f2c225]"/>{location}</span> : null}<span className="flex items-center gap-2"><ShieldCheck size={16} className="text-[#f2c225]"/>Reserva segura</span>{directions && <a target="_blank" rel="noopener noreferrer" href={directions} className="inline-flex items-center gap-1.5 text-[#f2c225] underline-offset-4 hover:underline">Como chegar <ArrowRight size={14}/></a>}</div></div>
       </div>
       {error ? <p role="alert" className="mt-6 rounded-xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">{error}</p> : null}
       {catalog ? <div className="mt-7 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]"><div className="space-y-6">
