@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Injectable, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Injectable, NotFoundException, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { ArrayMaxSize, IsArray, IsDateString, IsOptional, IsUUID } from "class-validator";
 import { Throttle } from "@nestjs/throttler";
 import { PrismaService } from "./prisma.service";
@@ -68,12 +68,12 @@ export class PublicBookingService {
           imageMime: true, updatedAt: true },
         orderBy: { name: "asc" } }),
       this.db.membership.findMany({ where: { tenantId: tenant.id, isActive: true,
-        role: { in: ["ADMIN", "EMPLOYEE"] }, services: { some: { service: { isActive: true } } } },
-        select: { id: true, user: { select: { name: true } },
+        role: { in: ["ADMIN", "EMPLOYEE"] }, appearsInAgenda: true, services: { some: { service: { isActive: true } } } },
+        select: { id: true, user: { select: { name: true, avatarMime: true, updatedAt: true } },
           services: { where: { service: { isActive: true } }, select: { serviceId: true } } },
       }),
       this.db.platformBrand.findUnique({ where: { id: "platform" }, select: {
-        defaultTenantCoverMime: true, defaultServiceImageMime: true, updatedAt: true,
+        defaultTenantCoverMime: true, defaultServiceImageMime: true, defaultProfileImageMime: true, updatedAt: true,
       } }),
     ]);
     const defaultImageUrl = branding?.defaultServiceImageMime ?
@@ -88,8 +88,25 @@ export class PublicBookingService {
         defaultImageUrl ?? (fallbackService ? `/tenants/${tenant.id}/services/${fallbackService.id}/image?v=${fallbackService.updatedAt.getTime()}` : null) })),
       professionals: professionals.map(p => ({
       id: p.id, name: p.user.name, serviceIds: p.services.map(s => s.serviceId),
+      avatarUrl: p.user.avatarMime ? `/b/${tenant.slug}/professionals/${p.id}/avatar?v=${p.user.updatedAt.getTime()}`
+        : branding?.defaultProfileImageMime ? `/branding/assets/avatar?v=${branding.updatedAt.getTime()}` : null,
     })) };
   }
+  async professionalAvatar(slug: string, memberId: string, res: import("express").Response) {
+    const tenant = await this.tenant(slug);
+    const professional = await this.db.membership.findFirst({
+      where: { id: memberId, tenantId: tenant.id, isActive: true, appearsInAgenda: true,
+        role: { in: ["ADMIN", "EMPLOYEE"] } },
+      select: { user: { select: { avatar: true, avatarMime: true } } },
+    });
+    if (!professional?.user.avatar || !professional.user.avatarMime) {
+      throw new NotFoundException("Foto do profissional não encontrada");
+    }
+    res.setHeader("Content-Type", professional.user.avatarMime);
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.send(Buffer.from(professional.user.avatar));
+  }
+
   async slots(slug: string, serviceIds: string[], memberId: string, date: string) {
     if (!validDate(date) || !serviceIds.length || !memberId) throw new BadRequestException("Data, serviço ou profissional inválido");
     const tenant = await this.tenant(slug);
@@ -120,6 +137,12 @@ export class PublicBookingController {
   @Get("b/:slug")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   catalog(@Param("slug") slug: string) { return this.publicBooking.catalog(slug); }
+
+  @Get("b/:slug/professionals/:memberId/avatar")
+  avatar(@Param("slug") slug: string, @Param("memberId") memberId: string,
+    @Res() res: import("express").Response) {
+    return this.publicBooking.professionalAvatar(slug, memberId, res);
+  }
 
   @Get("b/:slug/slots")
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
