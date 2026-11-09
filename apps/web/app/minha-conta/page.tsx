@@ -29,7 +29,9 @@ export default function MyAccountPage() {
     return () => { active = false; };
   }, [embedded, pathname, router]);
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!profile) return; setSaving(true); setError(""); setMessage("");
+    event.preventDefault(); if (!profile || saving) return;
+    if (avatar === "") { setError("Aplique o recorte da foto ou cancele a edição antes de salvar."); return; }
+    setSaving(true); setError(""); setMessage("");
     try {
       let saved = await apiJson<Profile>("/auth/me", mutation("PATCH", { name: profile.name, username: profile.username, email: profile.email, whatsapp: profile.whatsapp }));
       if (avatar) saved = await apiJson<Profile>("/auth/avatar", mutation("PUT", { imageDataUrl: avatar }));
