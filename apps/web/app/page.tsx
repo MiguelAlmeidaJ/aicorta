@@ -11,21 +11,22 @@ type Faq = { id: string; question: string; answer: string };
 
 type Establishment = {
   id: string; name: string; slug: string; city: string | null; state: string | null;
-  neighborhood: string | null; coverUrl: string | null; hasCustomCover?: boolean;
+  neighborhood: string | null; street?: string | null; streetNumber?: string | null; latitude?: number | null; longitude?: number | null; coverUrl: string | null; hasCustomCover?: boolean;
 };
 
 function locationLabel(item: Establishment) {
   const city = [item.city, item.state].filter(Boolean).join(" / ");
-  return [item.neighborhood, city].filter(Boolean).join(" · ") || "Endereço não informado";
+  return [[item.street, item.streetNumber].filter(Boolean).join(", "), item.neighborhood, city]
+    .filter(Boolean).join(" · ") || "Localização a confirmar";
 }
 function ShopCover({ item, className = "" }: { item: Establishment; className?: string }) {
   const [failed, setFailed] = useState(false);
   const src = item.coverUrl ? `${API_URL}${item.coverUrl}` : null;
   useEffect(() => setFailed(false), [src]);
   return src && !failed ? <img src={src} alt={`Capa de ${item.name}`} loading="lazy"
-    onError={() => setFailed(true)} className={`h-full w-full object-cover ${className}`}/> :
-    <div className="flex h-full w-full items-center justify-center bg-[#e7e9e3] text-[#9ca39a]" aria-label="Sem imagem de capa">
-      <Scissors size={36} strokeWidth={1.3}/>
+    onError={() => setFailed(true)} className={`${item.hasCustomCover ? "object-cover" : "object-contain px-8 py-6 sm:px-12 sm:py-8"} h-full w-full ${className}`}/> :
+    <div className="flex h-full w-full items-center justify-center bg-[#ecede8] text-[#858f80]" aria-label="Sem imagem de capa">
+      <Scissors size={38} strokeWidth={1.2}/>
     </div>;
 }
 
@@ -140,69 +141,128 @@ export default function HomePage() {
       </div>
     </section>
 
-    <section id="busca" className="scroll-mt-6 bg-white">
-      <div className="mx-auto max-w-[1180px] px-5 py-9 sm:px-8 sm:py-11">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-          <div className="shrink-0">
-            <h2 className="text-[20px] font-semibold tracking-tight">Encontre sua barbearia</h2>
-            <p className="mt-1 text-[12px] text-[#8c9388]">Pesquise por nome, cidade ou bairro.</p>
+    <section id="busca" aria-labelledby="search-title" className="scroll-mt-6 bg-[#f6f6f3]">
+      <div className="mx-auto max-w-[1180px] px-5 pt-12 sm:px-8 sm:pt-16">
+        <div className="relative overflow-hidden rounded-[22px] bg-[#1d221d] text-white shadow-[0_18px_52px_rgba(16,24,16,.09)]">
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[34%] lg:block">
+            {/* eslint-disable-next-line @next/next/no-img-element -- foto editorial, não é capa de um estabelecimento */}
+            <img src="https://images.unsplash.com/photo-1703792686658-24e62d626ed2?auto=format&fit=crop&w=850&q=85"
+              alt="" aria-hidden="true" loading="lazy" className="h-full w-full object-cover object-center opacity-70"/>
+            <div className="absolute inset-0 bg-gradient-to-r from-[#1d221d] via-[#1d221d]/50 to-transparent"/>
           </div>
-          <form role="search" onSubmit={submit} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-[630px]">
-            <label htmlFor="establishment-search" className="sr-only">Buscar barbearia</label>
-            <div className="flex h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl border border-[#dfe3db] bg-[#f9faf7] px-4 focus-within:border-[#a2aa9c]">
-              <Search size={18} className="shrink-0 text-[#838b7f]"/>
-              <input id="establishment-search" type="search" maxLength={80} value={query} onChange={event => setQuery(event.target.value)}
-                placeholder="Nome, cidade ou bairro" className="w-full min-w-0 bg-transparent text-[14px] outline-none placeholder:text-[#a4aaa0]"/>
-              {query && <button type="button" aria-label="Limpar busca" onClick={() => { setQuery(""); void search(""); }}><X size={16} className="text-[#92988f]"/></button>}
+          <div className="relative z-10 p-6 sm:p-9 lg:max-w-[77%] lg:px-11 lg:py-11">
+            <h2 id="search-title" className="text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-[-.045em]">
+              Encontre o lugar certo para você.
+            </h2>
+            <p className="mt-2 max-w-lg text-[13px] leading-6 text-[#bfc6bb]">
+              Busque pelo nome da barbearia ou pela região onde deseja agendar.
+            </p>
+            <form role="search" onSubmit={submit} className="mt-6 flex flex-col gap-2.5 sm:flex-row">
+              <label htmlFor="establishment-search" className="sr-only">Buscar barbearias por nome, cidade ou bairro</label>
+              <div className="flex h-[54px] min-w-0 flex-1 items-center gap-3 rounded-xl bg-white px-4 text-[#252b23] ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-[#dcc27c]">
+                <Search size={19} className="shrink-0 text-[#80897e]"/>
+                <input id="establishment-search" type="search" maxLength={80} value={query}
+                  onChange={event => setQuery(event.target.value)}
+                  placeholder="Nome da barbearia, cidade ou bairro"
+                  className="w-full min-w-0 bg-transparent text-[14px] outline-none placeholder:text-[#9da49a]"/>
+                {query && <button type="button" aria-label="Limpar busca" onClick={() => { setQuery(""); void search(""); }}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#737d71] hover:bg-[#eef0eb]"><X size={16}/></button>}
+              </div>
+              <button type="submit" disabled={loading}
+                className="inline-flex min-h-[54px] shrink-0 items-center justify-center gap-2 rounded-xl bg-[#e2bf68] px-7 text-[13px] font-bold text-[#1b2119] transition hover:bg-[#f1d58f] disabled:opacity-60">
+                <Search size={17}/>{loading ? "Buscando..." : "Buscar"}
+              </button>
+            </form>
+            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-[12px]">
+              <Link href="/mapa" className="inline-flex items-center gap-2 font-medium text-[#d4dcd1] hover:text-white">
+                <MapPin size={15} className="text-[#e2bf68]"/> Explorar no mapa <ArrowUpRight size={14}/>
+              </Link>
+              {searched && <button type="button" onClick={() => { setQuery(""); void search(""); }}
+                className="font-medium text-[#d4dcd1] underline underline-offset-4 hover:text-white">Ver todas as barbearias</button>}
             </div>
-            <button type="submit" disabled={loading} className="h-[52px] rounded-xl bg-[#1d211c] px-7 text-[13px] font-semibold text-white hover:bg-[#353b33] disabled:opacity-50">
-              {loading ? "Buscando..." : "Buscar"}
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="barbearias" className="mx-auto max-w-[1180px] scroll-mt-8 px-5 pb-20 pt-16 sm:px-8 sm:pb-24 sm:pt-20">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <section id="barbearias" className="mx-auto max-w-[1180px] scroll-mt-8 px-5 pb-20 pt-14 sm:px-8 sm:pb-24 sm:pt-20" aria-labelledby="establishments-heading">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-[#e1e5dc] pb-7">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#9b8b6c]">Nossos estabelecimentos</p>
-          <h2 className="mt-2 text-[clamp(1.7rem,3vw,2.3rem)] font-semibold tracking-[-.045em]">
-            {searched ? "Resultados encontrados" : "Escolha onde cuidar do visual"}
+          <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#9c8053]">
+            {searched ? "Sua busca" : "Explore e agende"}
+          </p>
+          <h2 id="establishments-heading" className="mt-2 text-[clamp(1.9rem,3.7vw,2.65rem)] font-semibold tracking-[-.055em] leading-[1.15]">
+            {searched ? "Barbearias encontradas" : "Barbearias para conhecer"}
           </h2>
-          {searched && <p className="mt-2 text-sm text-[#858c81]">Busca: {searched}</p>}
+          <p className="mt-3 text-[13px] leading-6 text-[#7e887a]">
+            {searched ? <>Resultados para <strong className="font-semibold text-[#30392f]">{searched}</strong>.</>
+              : "Conheça os estabelecimentos, veja os serviços e escolha seu próximo horário."}
+          </p>
         </div>
-        {!loading && !error && <span className="text-[12px] font-medium text-[#8a9286]">{establishments.length} {establishments.length === 1 ? "barbearia" : "barbearias"}</span>}
+        {!loading && !error && <span aria-live="polite"
+          className="rounded-full border border-[#dce2d8] bg-white px-4 py-2 text-[12px] font-semibold text-[#576152]">
+          {establishments.length} {establishments.length === 1 ? "barbearia" : "barbearias"}
+        </span>}
       </div>
       {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-      {loading ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {[1,2,3].map(index => <div key={index} className="h-[390px] animate-pulse rounded-2xl bg-[#e8eae5]"/>)}
-      </div> : establishments.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {establishments.map(item => <article key={item.id} className="group overflow-hidden rounded-[18px] border border-[#e4e7df] bg-white transition duration-200 hover:-translate-y-0.5 hover:border-[#c8cfc3] hover:shadow-[0_14px_35px_rgba(14,22,13,.06)]">
-          <Link href={`/b/${item.slug}`} aria-label={`Conhecer ${item.name}`} className="block aspect-[1.55/1] overflow-hidden bg-[#e7e9e3]">
-            <ShopCover item={item} className="transition-transform duration-500 group-hover:scale-[1.025]"/>
+      {loading ? <div className="grid gap-6 md:grid-cols-2">
+        {[1,2].map(index => <div key={index} className="overflow-hidden rounded-[20px] border border-[#e5e9e1] bg-white">
+          <div className="aspect-[16/9] animate-pulse bg-[#e5e8e0]"/>
+          <div className="space-y-3 p-6"><div className="h-6 w-1/2 animate-pulse rounded bg-[#eceee8]"/>
+            <div className="h-4 w-2/3 animate-pulse rounded bg-[#eceee8]"/>
+            <div className="h-12 animate-pulse rounded-lg bg-[#eceee8]"/></div>
+        </div>)}
+      </div> : establishments.length ? <div className="grid gap-6 md:grid-cols-2">
+        {establishments.map(item => <article key={item.id}
+          className="group flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#e1e6dc] bg-white shadow-[0_8px_28px_rgba(18,25,17,.035)] transition-all duration-200 hover:-translate-y-1 hover:border-[#c5cfc1] hover:shadow-[0_18px_42px_rgba(18,25,17,.09)]">
+          <Link href={`/b/${item.slug}`} aria-label={`Conhecer ${item.name}`}
+            className={`relative block aspect-[16/8.7] overflow-hidden ${item.hasCustomCover ? "bg-[#dfe4da]" : "bg-[#f2f3ef]"}`}>
+            <ShopCover item={item} className={item.hasCustomCover ? "transition-transform duration-500 group-hover:scale-[1.025]" : ""}/>
+            <span className="absolute left-4 top-4 rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-[#414b3d] shadow-sm">
+              Barbearia
+            </span>
           </Link>
-          <div className="px-5 pb-5 pt-5">
-            <h3 className="truncate text-[19px] font-semibold tracking-[-.035em]">{item.name}</h3>
-            <p className="mt-2 flex min-h-5 items-center gap-2 text-[12px] text-[#838b7e]">
-              <MapPin size={14} className="shrink-0"/>{locationLabel(item)}
+          <div className="flex flex-1 flex-col px-5 pb-5 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
+            <h3 className="truncate text-[22px] font-semibold tracking-[-.045em] text-[#222821]">{item.name}</h3>
+            <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-5 text-[#7a8578]">
+              <MapPin size={16} className="mt-0.5 shrink-0 text-[#9b8559]"/>
+              <span className="line-clamp-2">{locationLabel(item)}</span>
             </p>
-            <Link href={`/b/${item.slug}`} className="mt-5 flex items-center justify-between border-t border-[#eff0eb] pt-4 text-[12px] font-semibold text-[#282e27] hover:text-[#92713d]">
-              Ver serviços e horários <ArrowUpRight size={17}/>
-            </Link>
+            <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-[#ebeee7] pt-5 sm:mt-6">
+              <Link href={`/b/${item.slug}`}
+                className="inline-flex min-h-[47px] flex-1 items-center justify-between gap-4 rounded-xl bg-[#1d221c] px-5 text-[13px] font-semibold text-white transition hover:bg-[#343c32]">
+                Ver serviços e horários <ArrowUpRight size={17}/>
+              </Link>
+              {item.latitude != null && item.longitude != null &&
+                <Link href="/mapa" title="Encontrar a barbearia no mapa"
+                  className="flex h-[47px] w-[47px] shrink-0 items-center justify-center rounded-xl border border-[#dfe5da] text-[#4e5c4a] transition hover:bg-[#f2f5ef]"
+                  aria-label={`Ver ${item.name} no mapa`}><MapPin size={19}/></Link>}
+            </div>
           </div>
         </article>)}
-      </div> : <div className="rounded-2xl border border-[#e2e6de] bg-white px-6 py-14 text-center">
+      </div> : <div className="rounded-2xl border border-[#e2e6de] bg-white px-6 py-16 text-center">
         <Search size={27} className="mx-auto text-[#9ca398]"/>
         <h3 className="mt-4 text-base font-semibold">Nenhuma barbearia encontrada</h3>
-        <p className="mt-2 text-sm text-[#858d81]">Tente outra busca ou visualize todos os estabelecimentos.</p>
+        <p className="mt-2 text-sm text-[#858d81]">Tente outro nome ou localidade para encontrar estabelecimentos.</p>
         <button type="button" onClick={() => { setQuery(""); void search(""); }}
-          className="mt-5 rounded-xl border border-[#dfe3da] px-4 py-2.5 text-xs font-semibold">Limpar busca</button>
+          className="mt-5 rounded-xl border border-[#dfe3da] px-5 py-3 text-xs font-semibold transition hover:bg-[#f6f7f4]">Ver todas as barbearias</button>
       </div>}
-      <div className="mt-12 flex flex-col items-start justify-between gap-5 rounded-2xl border border-[#e4e8df] bg-white px-6 py-6 sm:flex-row sm:items-center sm:px-8">
-        <div><p className="text-[15px] font-semibold">Prefere buscar pela localização?</p>
-          <p className="mt-1 text-[12px] text-[#899187]">Explore os estabelecimentos por cidade e região.</p></div>
-        <Link href="/mapa" className="inline-flex items-center gap-2 rounded-xl border border-[#d9ded5] px-5 py-3 text-xs font-semibold hover:bg-[#f5f6f2]"><MapPin size={16}/> Abrir mapa <ArrowRight size={16}/></Link>
+      <div className="mt-12 flex flex-col overflow-hidden rounded-[20px] border border-[#e0e6dc] bg-[#e8ece5] sm:flex-row sm:items-stretch">
+        <div className="flex flex-1 flex-col justify-center p-6 sm:p-8">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#586750]"><MapPin size={21}/></div>
+          <h3 className="mt-5 text-[22px] font-semibold tracking-[-.045em] text-[#202820]">Prefere escolher pelo mapa?</h3>
+          <p className="mt-2 max-w-md text-[13px] leading-6 text-[#6c7869]">
+            Descubra estabelecimentos na sua região e encontre o caminho até a barbearia.
+          </p>
+          <Link href="/mapa" className="mt-6 inline-flex w-fit min-h-[44px] items-center gap-2 rounded-xl bg-white px-5 text-[12px] font-semibold text-[#2a3527] transition hover:bg-[#f9faf8]">
+            Explorar mapa <ArrowRight size={16}/>
+          </Link>
+        </div>
+        <div className="relative hidden min-h-[230px] w-[38%] overflow-hidden bg-[#242c24] sm:block">
+          {/* eslint-disable-next-line @next/next/no-img-element -- fotografia editorial, não representa a capa de uma barbearia */}
+          <img src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=700&q=80"
+            alt="Ambiente ilustrativo de uma barbearia" loading="lazy" className="h-full w-full object-cover"/>
+        </div>
       </div>
     </section>
     {faq.length > 0 && <section aria-labelledby="faq-heading" className="border-t border-[#e7eae4] bg-white">
