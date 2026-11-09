@@ -127,6 +127,9 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.ok(systemCookie.includes("aicorta_access="));
     const allowed = await request("GET", "/api/system/dashboard", undefined, systemCookie);
     assert.equal(allowed.status, 200);
+    assert.equal((await request("GET", "/api/public/faq")).status, 200);
+    assert.equal((await request("GET", "/api/system/faq")).status, 401);
+    assert.equal((await request("GET", "/api/system/faq", undefined, systemCookie)).status, 200);
     const manual = await request("POST", "/api/system/tenants", {
       name: "Barbearia Manual E2E", slug: `manual-${suffix}`, billingDueDay: 12,
       ownerName: "Proprietário Manual", ownerUsername: `manual${suffix}`,
@@ -144,6 +147,8 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       identifier: `manual${suffix}`, password,
     });
     assert.equal(ownerLogin.status, 201);
+    assert.equal((await request("PUT", "/api/system/faq", { items: [] },
+      cookies(ownerLogin.headers))).status, 403);
     assert.equal((await request("POST", "/api/system/tenants", {
       name: "Sem permissão", slug: `denied-${suffix}`, billingDueDay: 10,
       ownerName: "Sem permissão", ownerUsername: `denied${suffix}`,
@@ -165,6 +170,21 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.equal((await request("GET", `/api/tenants/${tenantA}/services/manage`, undefined, secondOwnerCookie)).status, 403);
     assert.equal((await request("GET", `/api/tenants/${tenantA}/dashboard`, undefined, systemCookie)).status, 403);
     assert.equal((await request("GET", "/api/system/tenants", undefined, ownerCookie)).status, 403);
+    const address = await request("PATCH", `/api/tenants/${tenantA}/settings`, {
+      postalCode: "36660000", street: "Rua das Flores", streetNumber: "125",
+      neighborhood: "Centro", city: "Além Paraíba", state: "MG",
+      latitude: -21.876, longitude: -42.703,
+    }, ownerCookie);
+    assert.equal(address.status, 200, JSON.stringify(address.json));
+    const discovery = await request("GET", "/api/public/tenants");
+    assert.equal(discovery.status, 200);
+    const found = (discovery.json as Array<{id:string;street:string;latitude:number;longitude:number}>)
+      .find(item => item.id === tenantA);
+    assert.equal(found?.street, "Rua das Flores");
+    assert.equal(found?.latitude, -21.876);
+    assert.equal(found?.longitude, -42.703);
+    assert.equal((await request("PATCH", `/api/tenants/${tenantA}/settings`,
+      { streetNumber: "126" }, secondOwnerCookie)).status, 403);
   });
 
   await t.test("configuração de agenda e cadastro independente de clientes", async () => {
