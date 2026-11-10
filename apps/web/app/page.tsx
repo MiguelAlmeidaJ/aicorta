@@ -5,6 +5,7 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import { ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
 import { PublicHeader } from "../components/public/public-header";
+import { PublicFooter } from "../components/public/public-footer";
 import { API_URL, apiJson } from "../lib/api";
 
 type Faq = { id: string; question: string; answer: string };
@@ -28,22 +29,6 @@ function ShopCover({ item, className = "" }: { item: Establishment; className?: 
     <div className="flex h-full w-full items-center justify-center bg-[#ecede8] text-[#858f80]" aria-label="Sem imagem de capa">
       <Scissors size={38} strokeWidth={1.2}/>
     </div>;
-}
-
-function PublicFooter() {
-  return <footer className="border-t border-[#e7e9e3] bg-white">
-    <div className="mx-auto flex max-w-[1180px] flex-col justify-between gap-6 px-5 py-9 sm:px-8 lg:flex-row lg:items-center">
-      <div><p className="text-[16px] font-bold tracking-[-.04em]">AICorta<span className="text-[#bb9235]">.</span></p>
-        <p className="mt-1 text-xs text-[#92978f]">Seu horário. Seu estilo.</p></div>
-      <nav aria-label="Links do rodapé" className="flex flex-wrap gap-5 text-xs font-medium text-[#656c62]">
-        <Link href="/" className="hover:text-black">Início</Link>
-        <Link href="/mapa" className="hover:text-black">Mapa</Link>
-        <Link href="/contato" className="hover:text-black">Contato</Link>
-        <Link href="/meus-agendamentos" className="hover:text-black">Meus agendamentos</Link>
-      </nav>
-      <p className="text-xs text-[#9ba098]">© {new Date().getFullYear()} AICorta</p>
-    </div>
-  </footer>;
 }
 
 export default function HomePage() {
@@ -205,38 +190,42 @@ export default function HomePage() {
         </span>}
       </div>
       {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-      {loading ? <div className="grid gap-6 md:grid-cols-2">
-        {[1,2].map(index => <div key={index} className="overflow-hidden rounded-[20px] border border-[#e5e9e1] bg-white">
-          <div className="aspect-[16/9] animate-pulse bg-[#e5e8e0]"/>
-          <div className="space-y-3 p-6"><div className="h-6 w-1/2 animate-pulse rounded bg-[#eceee8]"/>
-            <div className="h-4 w-2/3 animate-pulse rounded bg-[#eceee8]"/>
+      {loading ? <div className="grid gap-5 lg:grid-cols-2">
+        {[1,2].map(index => <div key={index} className="overflow-hidden rounded-[20px] border border-[#e5e9e1] bg-white sm:flex">
+          <div className="h-[225px] animate-pulse bg-[#e5e8e0] sm:h-[238px] sm:w-[44%]"/>
+          <div className="flex-1 space-y-4 p-7"><div className="h-6 w-2/3 animate-pulse rounded bg-[#eceee8]"/>
+            <div className="h-4 w-full animate-pulse rounded bg-[#eceee8]"/>
             <div className="h-12 animate-pulse rounded-lg bg-[#eceee8]"/></div>
         </div>)}
-      </div> : establishments.length ? <div className="grid gap-6 md:grid-cols-2">
+      </div> : establishments.length ? <div className="grid gap-5 lg:grid-cols-2">
         {establishments.map(item => <article key={item.id}
-          className="group flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#e1e6dc] bg-white shadow-[0_8px_28px_rgba(18,25,17,.035)] transition-all duration-200 hover:-translate-y-1 hover:border-[#c5cfc1] hover:shadow-[0_18px_42px_rgba(18,25,17,.09)]">
+          className="group flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#e2e5de] bg-white shadow-[0_8px_28px_rgba(18,25,17,.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c5cfc1] hover:shadow-[0_18px_42px_rgba(18,25,17,.075)] sm:flex-row lg:min-h-[254px]">
           <Link href={`/b/${item.slug}`} aria-label={`Conhecer ${item.name}`}
-            className={`relative block aspect-[16/8.7] overflow-hidden ${item.hasCustomCover ? "bg-[#dfe4da]" : "bg-[#f2f3ef]"}`}>
-            <ShopCover item={item} className={item.hasCustomCover ? "transition-transform duration-500 group-hover:scale-[1.025]" : ""}/>
-            <span className="absolute left-4 top-4 rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-[#414b3d] shadow-sm">
-              Barbearia
-            </span>
+            className={`relative block h-[195px] shrink-0 overflow-hidden sm:h-auto sm:w-[42%] ${item.hasCustomCover ? "bg-[#e1e5df]" : "bg-[#f4f5f1]"}`}>
+            <ShopCover item={item} className={item.hasCustomCover
+              ? "transition-transform duration-500 group-hover:scale-[1.035]"
+              : "transition-transform duration-500 group-hover:scale-[1.015]"}/>
+            {!item.hasCustomCover && <span className="pointer-events-none absolute inset-x-4 bottom-4 text-center text-[10px] font-semibold uppercase tracking-[.12em] text-[#a6ada1]">Identidade visual do AICorta</span>}
           </Link>
-          <div className="flex flex-1 flex-col px-5 pb-5 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
-            <h3 className="truncate text-[22px] font-semibold tracking-[-.045em] text-[#222821]">{item.name}</h3>
-            <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-5 text-[#7a8578]">
-              <MapPin size={16} className="mt-0.5 shrink-0 text-[#9b8559]"/>
+          <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
+            <div className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.14em] text-[#9a8054]">
+              <span className="h-[5px] w-[5px] rounded-full bg-[#d4b164]"/> Estabelecimento
+            </div>
+            <h3 className="text-[21px] font-semibold leading-tight tracking-[-.045em] text-[#202620]">{item.name}</h3>
+            <p className="mt-3 flex items-start gap-2 text-[12px] leading-5 text-[#768072]">
+              <MapPin size={16} className="mt-0.5 shrink-0 text-[#aa8c56]"/>
               <span className="line-clamp-2">{locationLabel(item)}</span>
             </p>
-            <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-[#ebeee7] pt-5 sm:mt-6">
+            <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
               <Link href={`/b/${item.slug}`}
-                className="inline-flex min-h-[47px] flex-1 items-center justify-between gap-4 rounded-xl bg-[#1d221c] px-5 text-[13px] font-semibold text-white transition hover:bg-[#343c32]">
-                Ver serviços e horários <ArrowUpRight size={17}/>
+                className="inline-flex min-h-[45px] flex-1 items-center justify-between gap-3 rounded-xl bg-[#1d221c] px-4 text-[12px] font-semibold text-white transition hover:bg-[#343c32]">
+                Agendar horário <ArrowUpRight size={16}/>
               </Link>
               {item.latitude != null && item.longitude != null &&
-                <Link href="/mapa" title="Encontrar a barbearia no mapa"
-                  className="flex h-[47px] w-[47px] shrink-0 items-center justify-center rounded-xl border border-[#dfe5da] text-[#4e5c4a] transition hover:bg-[#f2f5ef]"
-                  aria-label={`Ver ${item.name} no mapa`}><MapPin size={19}/></Link>}
+                <a href={`https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`}
+                  target="_blank" rel="noopener noreferrer" title="Como chegar"
+                  className="flex h-[45px] w-[45px] shrink-0 items-center justify-center rounded-xl border border-[#dfe5da] text-[#4e5c4a] transition hover:bg-[#f2f5ef]"
+                  aria-label={`Como chegar à ${item.name}`}><MapPin size={18}/></a>}
             </div>
           </div>
         </article>)}
@@ -247,22 +236,23 @@ export default function HomePage() {
         <button type="button" onClick={() => { setQuery(""); void search(""); }}
           className="mt-5 rounded-xl border border-[#dfe3da] px-5 py-3 text-xs font-semibold transition hover:bg-[#f6f7f4]">Ver todas as barbearias</button>
       </div>}
-      <div className="mt-12 flex flex-col overflow-hidden rounded-[20px] border border-[#e0e6dc] bg-[#e8ece5] sm:flex-row sm:items-stretch">
-        <div className="flex flex-1 flex-col justify-center p-6 sm:p-8">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-[#586750]"><MapPin size={21}/></div>
-          <h3 className="mt-5 text-[22px] font-semibold tracking-[-.045em] text-[#202820]">Prefere escolher pelo mapa?</h3>
-          <p className="mt-2 max-w-md text-[13px] leading-6 text-[#6c7869]">
-            Descubra estabelecimentos na sua região e encontre o caminho até a barbearia.
-          </p>
-          <Link href="/mapa" className="mt-6 inline-flex w-fit min-h-[44px] items-center gap-2 rounded-xl bg-white px-5 text-[12px] font-semibold text-[#2a3527] transition hover:bg-[#f9faf8]">
-            Explorar mapa <ArrowRight size={16}/>
-          </Link>
+      <div className="relative mt-11 flex flex-col items-start justify-between gap-6 overflow-hidden rounded-[20px] bg-[#1d241e] px-6 py-8 text-white sm:flex-row sm:items-center sm:px-9 sm:py-10">
+        <div className="pointer-events-none absolute -right-10 -top-20 h-[220px] w-[220px] rounded-full border border-[#ffffff12]"/>
+        <div className="pointer-events-none absolute -bottom-24 right-[14%] h-[200px] w-[200px] rounded-full border border-[#ffffff10]"/>
+        <div className="relative z-10 flex items-start gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#ffffff20] bg-[#ffffff10] text-[#ebc678]">
+            <MapPin size={22}/>
+          </span>
+          <div>
+            <h3 className="text-[19px] font-semibold tracking-[-.035em]">Encontre no mapa</h3>
+            <p className="mt-1 max-w-[510px] text-[13px] leading-6 text-[#bac5b9]">
+              Veja onde ficam as barbearias e descubra o melhor caminho para chegar.
+            </p>
+          </div>
         </div>
-        <div className="relative hidden min-h-[230px] w-[38%] overflow-hidden bg-[#242c24] sm:block">
-          {/* eslint-disable-next-line @next/next/no-img-element -- fotografia editorial, não representa a capa de uma barbearia */}
-          <img src="https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=700&q=80"
-            alt="Ambiente ilustrativo de uma barbearia" loading="lazy" className="h-full w-full object-cover"/>
-        </div>
+        <Link href="/mapa" className="relative z-10 inline-flex min-h-[46px] w-full shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-6 text-[12px] font-semibold text-[#1e281f] transition hover:bg-[#f0e9d9] sm:w-auto">
+          Explorar mapa <ArrowUpRight size={16}/>
+        </Link>
       </div>
     </section>
     {faq.length > 0 && <section aria-labelledby="faq-heading" className="border-t border-[#e7eae4] bg-white">
