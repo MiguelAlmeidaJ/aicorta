@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { inside, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
+import { bookingDateRange, inside, insideBookingHorizon, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
 test("rejects overlapping or invalid weekly windows", () => {
   assert.equal(validWindows([{ weekday: 1, startMinute: 540, endMinute: 720 },
     { weekday: 1, startMinute: 700, endMinute: 800 }]), false);
@@ -23,4 +23,20 @@ test("range checks use half-open intervals", () => {
 test("rejects impossible local dates", () => {
   assert.equal(validDate("2026-02-30"), false);
   assert.equal(validDate("2026-12-15"), true);
+});
+
+test("limite configurado inclui dias das próximas semanas e bloqueia além do horizonte", () => {
+  const now = new Date("2026-11-10T15:00:00.000Z");
+  const range = bookingDateRange("America/Sao_Paulo", 21, now);
+  assert.deepEqual(range, { today: "2026-11-10", lastDate: "2026-12-01" });
+  assert.equal(insideBookingHorizon("2026-11-10", "America/Sao_Paulo", 21, now), true);
+  assert.equal(insideBookingHorizon("2026-11-24", "America/Sao_Paulo", 21, now), true);
+  assert.equal(insideBookingHorizon("2026-12-01", "America/Sao_Paulo", 21, now), true);
+  assert.equal(insideBookingHorizon("2026-12-02", "America/Sao_Paulo", 21, now), false);
+  assert.equal(insideBookingHorizon("2026-11-09", "America/Sao_Paulo", 21, now), false);
+});
+test("o fuso da barbearia, não o UTC, define o dia e o início do prazo", () => {
+  const now = new Date("2026-11-11T01:30:00.000Z");
+  assert.deepEqual(bookingDateRange("America/Sao_Paulo", 7, now),
+    { today: "2026-11-10", lastDate: "2026-11-17" });
 });
