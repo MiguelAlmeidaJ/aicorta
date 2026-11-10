@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, CalendarCheck2, CalendarClock, CalendarDays, Check, ChevronDown,
@@ -55,6 +55,7 @@ export default function MyBookingsPage() {
   const [dates, setDates] = useState<Record<string, string>>({});
   const [slots, setSlots] = useState<Record<string, string[]>>({});
   const [loadingSlots, setLoadingSlots] = useState<string | null>(null);
+  const slotRequestIds = useRef<Record<string, number>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [referenceNow] = useState(() => Date.now());
@@ -111,6 +112,8 @@ export default function MyBookingsPage() {
   }
 
   async function getSlots(item: Booking, date: string) {
+    const id = (slotRequestIds.current[item.id] ?? 0) + 1;
+    slotRequestIds.current[item.id] = id;
     setDates(current => ({ ...current, [item.id]: date }));
     setSlots(current => ({ ...current, [item.id]: [] }));
     if (!date) return;
@@ -126,10 +129,14 @@ export default function MyBookingsPage() {
         date, serviceIds: (item.services.length ? item.services.map(row => row.service.id) : [item.serviceId]).join(","), membershipId: item.employeeMembershipId,
       });
       const response = await apiJson<SlotsResponse>(`/b/${encodeURIComponent(item.tenant.slug)}/slots?${q}`);
-      setSlots(current => ({ ...current, [item.id]: response.slots }));
+      if (slotRequestIds.current[item.id] === id) {
+        setSlots(current => ({ ...current, [item.id]: response.slots }));
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível consultar horários.");
-    } finally { setLoadingSlots(null); }
+      if (slotRequestIds.current[item.id] === id) {
+        setError(reason instanceof Error ? reason.message : "Não foi possível consultar horários.");
+      }
+    } finally { if (slotRequestIds.current[item.id] === id) setLoadingSlots(null); }
   }
 
   async function reschedule(item: Booking, startsAt: string) {
