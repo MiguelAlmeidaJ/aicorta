@@ -21,6 +21,7 @@ import { ServiceOrderController, ServiceOrderService } from "./service-orders";
 import { CashController, CashService } from "./cash";
 import { BillingController, BillingSchedulerService, BillingService } from "./billing";
 import { PlatformFaqController, PlatformFaqService } from "./platform-faq";
+import { ContactController, ContactService } from "./contact";
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { PlatformFaqController, PlatformFaqService } from "./platform-faq";
       signOptions: { expiresIn: "15m" },
     }),
   ],
-  controllers: [HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
-  providers: [PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, PlatformFaqService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  controllers: [ContactController, HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
+  providers: [ContactService, PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, PlatformFaqService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
