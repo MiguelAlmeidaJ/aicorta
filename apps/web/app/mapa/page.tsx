@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, MapPin, Navigation, Search, Scissors } from "lucide-react";
 import { PublicHeader } from "../../components/public/public-header";
+import { PublicFooter } from "../../components/public/public-footer";
 import { AicortaMap } from "../../components/maps/aicorta-map";
 import { apiJson } from "../../lib/api";
 
@@ -106,5 +107,6 @@ export default function MapPage() {
       </div>
       <p className="mt-4 text-[11px] text-[#8d968b]">Dados cartográficos © OpenStreetMap contributors.</p>
     </div>
+    <PublicFooter/>
   </main>;
 }
