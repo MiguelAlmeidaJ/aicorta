@@ -55,7 +55,7 @@ test("formulário não confirma envio se SMTP ou destinatário não estão confi
   delete process.env.CONTACT_TO_EMAIL;
   try {
     await assert.rejects(
-      () => new ContactService().send(Object.assign(new PublicContactDto(), valid)),
+      () => new ContactService({} as never).send(Object.assign(new PublicContactDto(), valid)),
       /O contato por formulário está indisponível/,
     );
   } finally {
