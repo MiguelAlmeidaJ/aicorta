@@ -113,6 +113,24 @@ export class PublicBookingService {
     const tenant = await this.tenant(slug);
     return this.agenda.availabilityForServices(tenant.id, serviceIds, memberId, date);
   }
+  async availableDays(slug: string, serviceIds: string[], memberId: string, startDate: string) {
+    if (!validDate(startDate) || !memberId || !serviceIds.length || serviceIds.length > 10) {
+      throw new BadRequestException("Informe data, profissional e serviços válidos");
+    }
+    const tenant = await this.tenant(slug);
+    const start = new Date(startDate + "T12:00:00.000Z");
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(start);
+      day.setUTCDate(day.getUTCDate() + index);
+      return day.toISOString().slice(0, 10);
+    });
+    const results = await Promise.all(days.map(async date => {
+      const availability = await this.agenda.availabilityForServices(tenant.id, serviceIds, memberId, date);
+      return { date, slots: availability.slots };
+    }));
+    return { timezone: tenant.timezone, days: results };
+  }
+
   async create(slug: string, userId: string, dto: PublicBookingDto) {
     const tenant = await this.tenant(slug);
     const serviceIds = dto.serviceIds?.length ? dto.serviceIds : dto.serviceId ? [dto.serviceId] : [];
@@ -151,6 +169,14 @@ export class PublicBookingController {
     @Query("membershipId") memberId: string, @Query("date") date: string) {
     const ids = serviceIds?.split(",").filter(Boolean) ?? (serviceId ? [serviceId] : []);
     return this.publicBooking.slots(slug, ids, memberId, date);
+  }
+
+  @Get("b/:slug/available-days")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  availableDays(@Param("slug") slug: string, @Query("serviceIds") serviceIds: string,
+    @Query("membershipId") memberId: string, @Query("from") startDate: string) {
+    const ids = serviceIds?.split(",").filter(Boolean) ?? [];
+    return this.publicBooking.availableDays(slug, ids, memberId, startDate);
   }
 
   @UseGuards(JwtAuthGuard) @Post("b/:slug/bookings")
