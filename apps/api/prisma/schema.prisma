@@ -136,6 +136,7 @@ model Tenant {
   name                String
   slug                String               @unique
   timezone            String               @default("America/Sao_Paulo")
+  bookingAdvanceDays  Int                  @default(21)
   billingDueDay       Int                  @default(10)
   monthlyFeeCents     Int                  @default(0)
   billingStartedAt    DateTime             @default(now())
