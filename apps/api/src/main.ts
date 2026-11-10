@@ -22,6 +22,6 @@ async function bootstrap() {
     next();
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-  await app.listen(Number(process.env.API_PORT ?? 3001));
+  await app.listen(Number(process.env.API_PORT ?? 3001), process.env.API_HOST ?? "0.0.0.0");
 }
 void bootstrap();
