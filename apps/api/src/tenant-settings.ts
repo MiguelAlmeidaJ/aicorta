@@ -1,5 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, Injectable, NotFoundException, Param, Patch, Post, Put, Res, UseGuards } from "@nestjs/common";
-import { IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
+import { IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import type { Response } from "express";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
@@ -23,6 +23,7 @@ export function parseTenantCover(dataUrl: string) {
 }
 
 export class UpdateTenantSettingsDto {
+  @IsOptional() @IsInt() @Min(1) @Max(90) bookingAdvanceDays?: number;
   @IsOptional() @IsString() @MinLength(2) @MaxLength(100) name?: string;
   @IsOptional() @IsString() @MinLength(3) @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(50) slug?: string;
   @IsOptional() @IsString() @MaxLength(100) city?: string;
@@ -52,6 +53,7 @@ export class LocateTenantDto {
 
 const settingsSelect = {
   id: true, name: true, slug: true, timezone: true, status: true, billingDueDay: true,
+  bookingAdvanceDays: true,
   city: true, state: true, neighborhood: true, postalCode: true, street: true,
   streetNumber: true, complement: true, latitude: true, longitude: true, coverMime: true, updatedAt: true,
 } as const;
@@ -74,7 +76,8 @@ export class TenantSettingsService {
       .some(key => Object.prototype.hasOwnProperty.call(dto, key));
     try {
       await this.db.tenant.update({ where: { id: tenantId },
-        data: { ...(dto.name !== undefined && { name: dto.name.trim() }),
+        data: { ...(dto.bookingAdvanceDays !== undefined && { bookingAdvanceDays: dto.bookingAdvanceDays }),
+          ...(dto.name !== undefined && { name: dto.name.trim() }),
           ...(dto.slug !== undefined && { slug: dto.slug }),
           ...(dto.city !== undefined && { city: dto.city.trim() || null }),
           ...(dto.state !== undefined && { state: dto.state.trim().toUpperCase() || null }),
