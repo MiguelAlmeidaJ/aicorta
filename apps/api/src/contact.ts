@@ -108,7 +108,7 @@ export function composeContactMessage(dto: PublicContactDto, brand: MailBrand = 
   return {
     ...((brand.logo?.length && ["image/png", "image/jpeg"].includes(brand.logoMime ?? "")) ? {
       attachments: [{ filename: brand.logoMime === "image/png" ? "aicorta.png" : "aicorta.jpg",
-        content: Buffer.from(brand.logo), contentType: brand.logoMime, cid: "aicorta-contact-logo" }],
+        content: Buffer.from(brand.logo), contentType: brand.logoMime ?? "image/png", cid: "aicorta-contact-logo" }],
     } : {}),
     html: contactHtml({name,email,whatsapp,subject,description},brand),
     replyTo: { name, address: email },
