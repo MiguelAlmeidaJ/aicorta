@@ -1,82 +1,173 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { ArrowRight, CheckCircle2, Mail, Send } from "lucide-react";
 import { PublicHeader } from "../../components/public/public-header";
 import { PublicFooter } from "../../components/public/public-footer";
+import { apiJson, mutation } from "../../lib/api";
 
-const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
-const supportPhone = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace(/\D/g, "") ?? "";
+type ContactSubject =
+  | "Quero usar o AICorta"
+  | "Dúvida sobre agendamento"
+  | "Suporte à plataforma"
+  | "Parceria ou comercial"
+  | "Outro assunto";
+type ContactData = {
+  name: string; email: string; whatsapp: string;
+  subject: ContactSubject; description: string; website: string;
+};
+const subjects: ContactSubject[] = [
+  "Quero usar o AICorta", "Dúvida sobre agendamento",
+  "Suporte à plataforma", "Parceria ou comercial", "Outro assunto",
+];
+const initial: ContactData = {
+  name: "", email: "", whatsapp: "", subject: "Quero usar o AICorta",
+  description: "", website: "",
+};
+const inputStyle = "mt-2 h-12 w-full rounded-xl border border-[#dfe4dc] bg-white px-4 text-[13px] text-[#262d25] outline-none transition focus:border-[#677862] focus:ring-2 focus:ring-[#677862]/10 placeholder:text-[#a0a89d]";
+
+function whatsappMask(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : "";
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  const isMobile = digits.length > 10;
+  const part = isMobile ? 7 : 6;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, part)}-${digits.slice(part)}`;
+}
 
 export default function ContactPage() {
-  return <main className="min-h-dvh bg-[#f6f6f3] text-[#1d211c]">
+  const [values, setValues] = useState<ContactData>(initial);
+  const [sending, setSending] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
+
+  function update(patch: Partial<ContactData>) {
+    setValues(current => ({ ...current, ...patch }));
+    if (error) setError("");
+    if (success) setSuccess("");
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (sending) return;
+    if (values.whatsapp.replace(/\D/g, "").length < 10) {
+      setError("Informe um número de WhatsApp com DDD."); return;
+    }
+    setSending(true); setError(""); setSuccess("");
+    try {
+      const response = await apiJson<{ message: string }>("/public/contact", mutation("POST", {
+        ...values,
+        name: values.name.trim(),
+        email: values.email.trim(),
+        description: values.description.trim(),
+      }));
+      setSuccess(response.message);
+      setValues(initial);
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : "";
+      setError(detail.includes("indisponível") || detail.includes("Não foi possível enviar")
+        ? detail : "Não conseguimos enviar sua mensagem. Confira os campos e tente novamente.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return <main className="min-h-dvh bg-[#f7f8f5] text-[#252b23]">
     <PublicHeader active="contato"/>
-    <section className="mx-auto max-w-[1120px] px-5 pb-20 pt-14 sm:px-8 sm:pb-28 sm:pt-20">
-      <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#9c8253]">Central de contato</p>
-      <h1 className="mt-4 max-w-[700px] text-[clamp(2.4rem,5vw,4.1rem)] font-semibold leading-[1.12] tracking-[-.06em]">Como podemos ajudar?</h1>
-      <p className="mt-5 max-w-[650px] text-[15px] leading-7 text-[#7c8378]">
-        Encontre o melhor canal de atendimento para sua dúvida, seja sobre uma reserva ou sobre o acesso à plataforma.
-      </p>
-      <section id="para-barbearias" aria-labelledby="barber-contact-title"
-        className="mt-10 scroll-mt-8 rounded-[20px] border border-[#dee4d9] bg-white p-6 shadow-[0_8px_35px_rgba(20,25,18,.035)] sm:p-8">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[.17em] text-[#a28a5e]">Para barbearias</p>
-            <h2 id="barber-contact-title" className="mt-2 text-[22px] font-semibold tracking-[-.04em]">
-              Quer levar o AICorta para seu estabelecimento?
-            </h2>
-            <p className="mt-2 max-w-[610px] text-[13px] leading-6 text-[#7d877a]">
-              Nosso cadastro de estabelecimentos é feito pela equipe. Fale conosco para conhecer o sistema e solicitar informações de acesso.
+    <div className="mx-auto w-full max-w-[1120px] px-5 pb-20 pt-12 sm:px-8 sm:pt-16">
+      <div className="max-w-[760px]">
+        <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#998257]">Contato</p>
+        <h1 className="mt-3 text-[clamp(2.1rem,4.2vw,3.4rem)] font-semibold tracking-[-.055em]">Fale com o AICorta</h1>
+        <p className="mt-3 max-w-[630px] text-[14px] leading-7 text-[#788174]">
+          Quer utilizar o AICorta na sua barbearia ou precisa de suporte? Preencha o formulário e envie sua mensagem para nossa equipe.
+        </p>
+      </div>
+
+      <div id="para-barbearias" className="mt-9 grid scroll-mt-8 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(275px,.85fr)] lg:items-start">
+        <section aria-labelledby="contact-form-title" className="rounded-[19px] border border-[#e0e5dc] bg-white p-5 shadow-[0_9px_35px_rgba(22,29,19,.035)] sm:p-8">
+          <div className="border-b border-[#e8ebe5] pb-5">
+            <h2 id="contact-form-title" className="text-[19px] font-semibold tracking-[-.025em]">Envie sua mensagem</h2>
+            <p className="mt-1 text-[12px] text-[#8b9488]">Os campos marcados com * são obrigatórios.</p>
+          </div>
+          {success ? <div role="status" className="mt-5 flex items-start gap-3 rounded-xl border border-[#d7e8d5] bg-[#f1f7ef] p-4 text-[13px] leading-6 text-[#42653d]">
+            <CheckCircle2 size={20} className="mt-0.5 shrink-0"/><span>{success}</span>
+          </div> : null}
+          {error ? <div role="alert" className="mt-5 rounded-xl border border-[#f0d9d6] bg-[#fff3f1] px-4 py-3 text-[13px] leading-6 text-[#a0443c]">{error}</div> : null}
+          <form onSubmit={submit} className="mt-6 space-y-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block text-[12px] font-semibold text-[#515c4e]">Nome completo *
+                <input required minLength={2} maxLength={100} autoComplete="name" value={values.name}
+                  onChange={event => update({name: event.target.value})}
+                  placeholder="Seu nome" className={inputStyle}/>
+              </label>
+              <label className="block text-[12px] font-semibold text-[#515c4e]">E-mail *
+                <input required type="email" maxLength={254} autoComplete="email" value={values.email}
+                  onChange={event => update({email: event.target.value})}
+                  placeholder="voce@exemplo.com" className={inputStyle}/>
+              </label>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block text-[12px] font-semibold text-[#515c4e]">WhatsApp (DDD + número) *
+                <input required type="tel" inputMode="tel" autoComplete="tel-national"
+                  minLength={14} maxLength={15} value={values.whatsapp}
+                  onChange={event => update({whatsapp: whatsappMask(event.target.value)})}
+                  placeholder="(32) 99999-9999" className={inputStyle}/>
+              </label>
+              <label className="block text-[12px] font-semibold text-[#515c4e]">Assunto *
+                <select required value={values.subject}
+                  onChange={event => update({subject: event.target.value as ContactSubject})}
+                  className={inputStyle + " cursor-pointer"}>
+                  {subjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="block text-[12px] font-semibold text-[#515c4e]">Descrição *
+              <textarea required minLength={10} maxLength={3000} rows={6}
+                value={values.description} onChange={event => update({description:event.target.value})}
+                placeholder="Conte um pouco sobre o que você precisa..."
+                className="mt-2 block min-h-[145px] w-full resize-y rounded-xl border border-[#dfe4dc] bg-white p-4 text-[13px] leading-6 text-[#262d25] outline-none transition focus:border-[#677862] focus:ring-2 focus:ring-[#677862]/10 placeholder:text-[#a0a89d]"/>
+            </label>
+            <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+              <label>Site <input tabIndex={-1} autoComplete="off" name="website"
+                value={values.website} onChange={event=>update({website:event.target.value})}/></label>
+            </div>
+            <div className="flex flex-col gap-4 border-t border-[#ebeee8] pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="max-w-[380px] text-[11px] leading-5 text-[#8b9588]">
+                Seus dados serão usados para responder à solicitação. Consulte a{" "}
+                <Link href="/politica-de-privacidade" className="font-semibold text-[#4a5d47] underline underline-offset-2">Política de Privacidade</Link>.
+              </p>
+              <button type="submit" disabled={sending}
+                className="inline-flex min-h-[47px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1e241e] px-6 text-[13px] font-semibold text-white transition hover:bg-[#394238] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+                {sending ? "Enviando..." : "Enviar mensagem"}<Send size={16}/>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <aside className="space-y-5">
+          <div className="rounded-[18px] border border-[#e1e6dd] bg-white p-6">
+            <span className="text-[10px] font-bold uppercase tracking-[.15em] text-[#a18a5c]">Para barbearias</span>
+            <h2 className="mt-3 text-[20px] font-semibold leading-snug tracking-[-.035em]">Quer usar o AICorta no seu estabelecimento?</h2>
+            <p className="mt-3 text-[13px] leading-6 text-[#808a7c]">
+              Selecione o assunto <strong className="font-semibold text-[#4c584a]">Quero usar o AICorta</strong> e conte sobre sua barbearia.
+              Nossa equipe recebe a solicitação por e-mail.
             </p>
           </div>
-          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto">
-            {supportPhone ? <a href={`https://wa.me/${supportPhone}?text=${encodeURIComponent("Olá! Tenho uma barbearia e quero conhecer o AICorta. Como faço para utilizar o sistema?")}`}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-[45px] items-center justify-center gap-2 rounded-xl bg-[#1d221c] px-5 text-[12px] font-semibold text-white hover:bg-[#384136]">
-              <MessageCircle size={16}/> Conversar no WhatsApp
-            </a> : null}
-            {supportEmail ? <a href={`mailto:${supportEmail}?subject=${encodeURIComponent("Interesse em utilizar o AICorta")}&body=${encodeURIComponent("Olá! Tenho interesse em utilizar o AICorta na minha barbearia. Gostaria de receber mais informações.")}`}
-              className="inline-flex min-h-[45px] items-center justify-center gap-2 rounded-xl border border-[#dde4d8] bg-[#f7f9f5] px-5 text-[12px] font-semibold text-[#313b2f] hover:bg-[#edf1ea]">
-              <Mail size={16}/> Enviar e-mail
-            </a> : null}
-            {!supportPhone && !supportEmail && <a href="https://www.nivel3ti.com.br" target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-[45px] items-center justify-center gap-2 rounded-xl bg-[#1d221c] px-5 text-[12px] font-semibold text-white hover:bg-[#384136]">
-              <ArrowRight size={16}/> Contatar Nivel 3 TI
-            </a>}
+          <div className="rounded-[18px] border border-[#e1e6dd] bg-white p-6">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0f3ed] text-[#52624e]"><Mail size={19}/></span>
+            <h2 className="mt-4 text-[17px] font-semibold">Sobre agendamentos</h2>
+            <p className="mt-2 text-[13px] leading-6 text-[#808a7c]">
+              Para consultar ou cancelar uma reserva, acesse seus agendamentos. Para dúvidas específicas do atendimento,
+              fale diretamente com a barbearia.
+            </p>
+            <Link href="/meus-agendamentos" className="mt-4 inline-flex items-center gap-2 text-[12px] font-semibold text-[#334230] hover:underline">
+              Meus agendamentos <ArrowRight size={16}/>
+            </Link>
           </div>
-        </div>
-      </section>
-      <div className="mt-12 grid gap-5 md:grid-cols-2">
-        <article className="flex flex-col rounded-2xl border border-[#e3e7df] bg-white p-6 sm:p-8">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f1f3ee] text-[#4e5e4c]"><MapPin size={22}/></span>
-          <h2 className="mt-6 text-[20px] font-semibold tracking-tight">Sobre seu agendamento</h2>
-          <p className="mt-3 flex-1 text-[13px] leading-6 text-[#818a7e]">
-            Para confirmar endereço, disponibilidade e detalhes do atendimento, consulte a página da barbearia.
-            Para acompanhar ou cancelar reservas, acesse sua área de cliente.
-          </p>
-          <Link href="/meus-agendamentos" className="mt-7 inline-flex items-center gap-2 text-[13px] font-semibold text-[#262d24] hover:underline">
-            Acessar meus agendamentos <ArrowRight size={16}/>
-          </Link>
-        </article>
-        <article className="flex flex-col rounded-2xl border border-[#e3e7df] bg-white p-6 sm:p-8">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f1f3ee] text-[#4e5e4c]"><ShieldCheck size={22}/></span>
-          <h2 className="mt-6 text-[20px] font-semibold tracking-tight">Suporte ao AICorta</h2>
-          <p className="mt-3 text-[13px] leading-6 text-[#818a7e]">
-            Dúvidas sobre acesso, utilização da plataforma ou cadastro de estabelecimentos?
-            Entre em contato pelos canais oficiais disponíveis.
-          </p>
-          {supportEmail || supportPhone ? <div className="mt-6 space-y-2">
-            {supportEmail && <a href={`mailto:${supportEmail}`} className="flex items-center gap-3 rounded-xl border border-[#e5e8e1] px-4 py-3 text-sm font-medium hover:bg-[#f8faf6]">
-              <Mail size={17} className="text-[#6b7667]"/><span className="min-w-0 break-all">{supportEmail}</span>
-            </a>}
-            {supportPhone && <a href={`https://wa.me/${supportPhone}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-xl border border-[#e5e8e1] px-4 py-3 text-sm font-medium hover:bg-[#f8faf6]">
-              <MessageCircle size={17} className="text-[#6b7667]"/> Conversar pelo WhatsApp
-            </a>}
-          </div> : <p className="mt-6 rounded-xl bg-[#f5f6f2] px-4 py-3 text-[12px] leading-5 text-[#8b9388]">
-            Os canais públicos de suporte ainda não foram configurados. Se recebeu um convite para a plataforma,
-            utilize o contato informado pelo responsável pelo convite.
-          </p>}
-        </article>
+        </aside>
       </div>
-    </section>
+    </div>
     <PublicFooter/>
   </main>;
 }
