@@ -78,15 +78,17 @@ export default function PublicBarbershopPage() {
   async function book() {
     if (!selectedSlot || !professionalId || !serviceIds.length || submittingRef.current) return;
     submittingRef.current = true; setSubmitting(true); setError("");
+    let navigating = false;
     try {
       const response = await apiFetch(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceIds, employeeMembershipId: professionalId, startsAt: selectedSlot }) });
-      if (response.status === 401) { window.location.assign("/login?next=" + encodeURIComponent("/b/" + slug)); return; }
+      if (response.status === 401) { navigating = true; window.location.assign("/login?next=" + encodeURIComponent("/b/" + slug)); return; }
       if (response.status === 409) { setError("Esse horário acabou de ser reservado. Escolha outro."); setSelectedSlot(""); return; }
       if (!response.ok) { const body = await response.json().catch(() => ({})) as { message?: string | string[] }; throw new Error(Array.isArray(body.message) ? body.message.join("; ") : body.message ?? "Não foi possível reservar."); }
       // Navegação completa evita inconsistências de reconciliação do DOM após uma ação crítica.
+      navigating = true;
       window.location.assign("/meus-agendamentos?reservado=1");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Não foi possível concluir a reserva."); }
-    finally { submittingRef.current = false; setSubmitting(false); }
+    finally { if (!navigating) { submittingRef.current = false; setSubmitting(false); } }
   }
 
   const stepClass = "rounded-[22px] border border-[#e4e6df] bg-white p-6 sm:p-8";
