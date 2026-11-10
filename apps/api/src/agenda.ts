@@ -4,7 +4,7 @@ import { Type } from "class-transformer";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
-import { inside, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
+import { inside, insideBookingHorizon, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
 
 export class WorkWindowDto {
   @IsInt() @Min(0) @Max(6) weekday!: number;
@@ -29,7 +29,7 @@ export class TimeOffDto {
 export class AgendaService {
   constructor(private readonly db: PrismaService) {}
   async tenant(tenantId: string) {
-    const tenant = await this.db.tenant.findFirst({ where: { id: tenantId, status: "ACTIVE" }, select: { timezone: true } });
+    const tenant = await this.db.tenant.findFirst({ where: { id: tenantId, status: "ACTIVE" }, select: { timezone: true, bookingAdvanceDays: true } });
     if (!tenant) throw new NotFoundException("Estabelecimento não encontrado");
     try { new Intl.DateTimeFormat("pt-BR", { timeZone: tenant.timezone }); }
     catch { throw new BadRequestException("Fuso horário inválido"); }
@@ -119,6 +119,9 @@ export class AgendaService {
   async availabilityForServices(tenantId: string, serviceIds: string[], memberId: string, date: string) {
     if (!validDate(date)) throw new BadRequestException("Data inválida (AAAA-MM-DD)");
     const tenant = await this.tenant(tenantId);
+    if (!insideBookingHorizon(date, tenant.timezone, tenant.bookingAdvanceDays ?? 21)) {
+      return { date, timezone: tenant.timezone, slots: [] as string[] };
+    }
     await this.professional(tenantId, memberId);
     const ids = [...new Set(serviceIds)];
     if (!ids.length || ids.length > 10) throw new BadRequestException("Selecione entre 1 e 10 serviços");
