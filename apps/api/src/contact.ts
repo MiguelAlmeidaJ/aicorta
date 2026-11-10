@@ -145,9 +145,16 @@ export class ContactService {
     try {
       // A logo publicada no SYSTEM é anexada inline (CID): não depende de carregamento externo.
       const brand = await this.db.platformBrand.findUnique({
-        where: { id: "platform" }, select: { name: true, gold: true, logo: true, logoMime: true },
+        where: { id: "platform" },
+        select: { name: true, gold: true, logo: true, logoMime: true,
+          darkLogo: true, darkLogoMime: true },
       });
-      mail = composeContactMessage(dto, brand ?? {});
+      const prefersDark = brand?.darkLogo && ["image/png", "image/jpeg"].includes(brand.darkLogoMime ?? "");
+      mail = composeContactMessage(dto, brand ? {
+        name: brand.name, gold: brand.gold,
+        logo: prefersDark ? brand.darkLogo : brand.logo,
+        logoMime: prefersDark ? brand.darkLogoMime : brand.logoMime,
+      } : {});
     }
     catch { throw new ServiceUnavailableException("Não foi possível processar o contato."); }
     const port = Number(process.env.SMTP_PORT ?? "587");
