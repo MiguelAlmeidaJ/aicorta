@@ -255,6 +255,25 @@ export default function HomePage() {
         </Link>
       </div>
     </section>
+    <section aria-labelledby="barber-interest-heading" className="bg-[#f6f6f3]">
+      <div className="mx-auto max-w-[1180px] px-5 pb-16 pt-0 sm:px-8 sm:pb-20">
+        <div className="flex flex-col items-start justify-between gap-5 rounded-[20px] border border-[#e0e6dd] bg-white px-6 py-7 sm:flex-row sm:items-center sm:px-9 sm:py-8">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#a08757]">Para profissionais e estabelecimentos</p>
+            <h2 id="barber-interest-heading" className="mt-2 text-[21px] font-semibold tracking-[-.035em] text-[#262c24]">
+              Tem uma barbearia? Conheça o AICorta.
+            </h2>
+            <p className="mt-2 max-w-[590px] text-[13px] leading-6 text-[#7b8577]">
+              Organize sua agenda, equipe e atendimentos. Entre em contato para saber como usar o sistema.
+            </p>
+          </div>
+          <Link href="/contato#para-barbearias"
+            className="inline-flex min-h-[46px] w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1d221c] px-5 text-[12px] font-semibold text-white transition hover:bg-[#3a4238] sm:w-auto">
+            Quero usar o AICorta <ArrowUpRight size={16}/>
+          </Link>
+        </div>
+      </div>
+    </section>
     {faq.length > 0 && <section aria-labelledby="faq-heading" className="border-t border-[#e7eae4] bg-white">
       <div className="mx-auto grid max-w-[1180px] gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)] lg:gap-16">
         <div>
