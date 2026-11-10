@@ -1,8 +1,23 @@
 const path = require("node:path");
+const fs = require("node:fs");
+const { parseEnv } = require("node:util");
 
 const rootDir = __dirname;
 const apiDir = path.join(rootDir, "apps", "api");
 const webDir = path.join(rootDir, "apps", "web");
+const envPath = path.join(rootDir, ".env");
+// PM2 launches processes from apps/api and apps/web; the root .env must be
+// explicitly propagated to the API. Never include API secrets in the web env.
+const rootEnv = fs.existsSync(envPath) ? parseEnv(fs.readFileSync(envPath, "utf8")) : {};
+const apiKeys = [
+  "DATABASE_URL", "JWT_SECRET", "API_PORT", "API_HOST", "WEB_ORIGIN",
+  "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM",
+  "CONTACT_TO_EMAIL", "GOOGLE_GEOCODING_API_KEY",
+];
+const apiEnvironment = Object.fromEntries(apiKeys.flatMap(key => {
+  const value = process.env[key] ?? rootEnv[key];
+  return value === undefined ? [] : [[key, value]];
+}));
 
 const shared = {
   namespace: "aicorta",
@@ -32,6 +47,10 @@ module.exports = {
       script: path.join(apiDir, "dist", "main.js"),
       interpreter: process.execPath,
       max_memory_restart: "512M",
+      env: { ...shared.env, ...apiEnvironment, API_PORT: apiEnvironment.API_PORT || "3001",
+        API_HOST: apiEnvironment.API_HOST || "127.0.0.1" },
+      env_production: { ...shared.env_production, ...apiEnvironment,
+        API_PORT: apiEnvironment.API_PORT || "3001", API_HOST: apiEnvironment.API_HOST || "127.0.0.1" },
     },
     {
       ...shared,
@@ -43,7 +62,8 @@ module.exports = {
       max_memory_restart: "768M",
       env: {
         ...shared.env,
-        PORT: process.env.WEB_PORT || "3000",
+        PORT: process.env.WEB_PORT || rootEnv.WEB_PORT || "3000",
+        HOSTNAME: process.env.WEB_HOST || rootEnv.WEB_HOST || "127.0.0.1",
         NEXT_TELEMETRY_DISABLED: "1",
       },
       env_production: {
