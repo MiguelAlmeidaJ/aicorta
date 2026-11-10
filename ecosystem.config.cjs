@@ -68,7 +68,8 @@ module.exports = {
       },
       env_production: {
         ...shared.env_production,
-        PORT: process.env.WEB_PORT || "3000",
+        PORT: process.env.WEB_PORT || rootEnv.WEB_PORT || "3000",
+        HOSTNAME: process.env.WEB_HOST || rootEnv.WEB_HOST || "127.0.0.1",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },
