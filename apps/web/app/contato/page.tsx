@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
 import { PublicHeader } from "../../components/public/public-header";
+import { PublicFooter } from "../../components/public/public-footer";
 
 const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
 const supportPhone = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace(/\D/g, "") ?? "";
@@ -47,5 +48,6 @@ export default function ContactPage() {
         </article>
       </div>
     </section>
+    <PublicFooter/>
   </main>;
 }
