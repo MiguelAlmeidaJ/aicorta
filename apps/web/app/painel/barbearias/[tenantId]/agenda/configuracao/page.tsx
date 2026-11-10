@@ -207,6 +207,8 @@ function WindowsEditor({ draft, onChange, description }: {
 export default function ScheduleConfigurationPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [shop, setShop] = useState<ScheduleDraft>(defaultWeek);
+  const [bookingAdvanceDays, setBookingAdvanceDays] = useState(21);
+  const [savedAdvanceDays, setSavedAdvanceDays] = useState(21);
   const [members, setMembers] = useState<Member[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [memberId, setMemberId] = useState("");
@@ -226,7 +228,8 @@ export default function ScheduleConfigurationPage() {
       apiJson<WindowRow[]>(`/tenants/${tenantId}/agenda/hours`),
       apiJson<Member[]>(`/tenants/${tenantId}/employees`),
       apiJson<Service[]>(`/tenants/${tenantId}/services/manage`),
-    ]).then(([hours, people, catalog]) => { if (active) { setShop(fromWindows(hours)); setMembers(people.filter(item => item.isActive && item.appearsInAgenda)); setServices(catalog.filter(item => item.isActive)); } })
+      apiJson<{ bookingAdvanceDays: number }>(`/tenants/${tenantId}/settings`),
+    ]).then(([hours, people, catalog, settings]) => { if (active) { setShop(fromWindows(hours)); setMembers(people.filter(item => item.isActive && item.appearsInAgenda)); setServices(catalog.filter(item => item.isActive)); setBookingAdvanceDays(settings.bookingAdvanceDays); setSavedAdvanceDays(settings.bookingAdvanceDays); } })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "Erro ao carregar configuração"); });
     return () => { active = false; };
   }, [tenantId]);
@@ -244,6 +247,20 @@ export default function ScheduleConfigurationPage() {
       .finally(() => { if (active) setLoadingMember(false); });
     return () => { active = false; };
   }, [memberId, tenantId]);
+
+  async function saveBookingWindow() {
+    if (!Number.isInteger(bookingAdvanceDays) || bookingAdvanceDays < 1 || bookingAdvanceDays > 90) {
+      setError("Escolha um período de 1 a 90 dias."); return;
+    }
+    setError(""); setMessage(""); setSavingScope("bookingWindow");
+    try {
+      await apiJson(`/tenants/${tenantId}/settings`, mutation("PATCH", { bookingAdvanceDays }));
+      setSavedAdvanceDays(bookingAdvanceDays);
+      setMessage(`Os clientes poderão agendar até ${bookingAdvanceDays} dias à frente.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível salvar o período de reservas.");
+    } finally { setSavingScope(null); }
+  }
 
   async function saveWindows(scope: "shop" | "staff") {
     setError(""); setMessage("");
@@ -310,6 +327,29 @@ export default function ScheduleConfigurationPage() {
       </button>
     </nav>
 
+    {section === "shop" && <div className="mb-5 rounded-2xl border border-[#e4e8e0] bg-white px-5 py-5 sm:px-7">
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+        <div className="max-w-lg">
+          <h2 className="text-[15px] font-bold text-[#222a21]">Prazo para novos agendamentos</h2>
+          <p className="mt-1.5 text-[12px] leading-6 text-[#828c7f]">
+            Defina quantos dias à frente o cliente pode reservar. Quando uma semana não tiver horários,
+            ele poderá avançar para as próximas, dentro desse limite.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-[11px] font-semibold text-[#626d60]">Dias à frente
+            <input type="number" min={1} max={90} step={1} value={bookingAdvanceDays}
+              onChange={event => setBookingAdvanceDays(Number(event.target.value))}
+              className={fieldClass + " mt-2 w-24 text-center tabular-nums"}/>
+          </label>
+          <button type="button" disabled={savingScope !== null || bookingAdvanceDays === savedAdvanceDays}
+            onClick={() => void saveBookingWindow()}
+            className={primaryButton + " min-h-11 justify-center disabled:opacity-40"}>
+            <Save size={15}/>{savingScope === "bookingWindow" ? "Salvando..." : "Salvar prazo"}
+          </button>
+        </div>
+      </div>
+    </div>}
     {section === "shop" ? <Panel title="Expediente da barbearia"
       description="Configure os dias de funcionamento e a pausa de almoço. Tudo em um único lugar.">
       <WindowsEditor draft={shop} onChange={setShop} description="Ative os dias trabalhados e ajuste os horários."/>
