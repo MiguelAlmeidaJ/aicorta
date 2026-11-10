@@ -107,6 +107,7 @@ export default function AgendaPage() {
     dayAt(new Date(item.startsAt), timezone) === day), [filtered, timezone, day]);
 
   async function setBookingStatus(id: string, next: "CONFIRMED" | "COMPLETED" | "NO_SHOW") {
+    if (busy) return;
     setBusy(id); setError(""); setNotice("");
     const target = next === "CONFIRMED"
       ? `/tenants/${tenantId}/appointments/${id}/confirm`
@@ -115,7 +116,8 @@ export default function AgendaPage() {
       await apiJson(target, next === "CONFIRMED"
         ? { method: "PATCH" }
         : mutation("PATCH", { status: next }));
-      setNotice(next === "CONFIRMED" ? "Reserva confirmada." :
+      setItems(current => current.map(item => item.id === id ? { ...item, status: next } : item));
+      setNotice(next === "CONFIRMED" ? "Reserva confirmada com sucesso." :
         next === "COMPLETED" ? "Atendimento concluído." : "Ausência registrada.");
       setReload(value => value + 1);
     } catch (err) {
@@ -126,7 +128,7 @@ export default function AgendaPage() {
   function actions(item: Appointment) {
     const canFinish = new Date(item.startsAt) <= new Date();
     return <div className="mt-3 flex flex-wrap gap-2">
-      {item.status === "PENDING" && <button disabled={busy === item.id} type="button"
+      {item.status === "PENDING" && <button disabled={busy !== null} type="button"
         onClick={() => void setBookingStatus(item.id, "CONFIRMED")}
         className="inline-flex items-center gap-1.5 rounded-lg bg-[#181a16] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#353731] disabled:opacity-40">
         <Check size={13}/> Confirmar
@@ -236,7 +238,7 @@ export default function AgendaPage() {
               const current = date === day;
               const todayMark = date === dayAt(new Date(), timezone);
               const bookings = filtered.filter(item => dayAt(new Date(item.startsAt), timezone) === date);
-              return <div key={date} className="min-h-[300px]">
+              return <div key={date} className="min-h-[155px]">
                 <button onClick={() => { setDay(date); setView("day"); }}
                   aria-label={`Ver agenda de ${displayDay(date, { dateStyle: "full" })}`}
                   className={`mb-3 flex w-full flex-col items-center gap-1 rounded-xl px-2 py-3 transition
@@ -250,7 +252,7 @@ export default function AgendaPage() {
                 <div className="space-y-2.5">
                   {bookings.map(booking => card(booking, true))}
                   {bookings.length === 0 && <div className="rounded-xl border border-dashed border-[#e7e9e3] px-2 py-6 text-center text-[11px] text-[#afb3aa]">
-                    Livre
+                    Sem reservas
                   </div>}
                 </div>
               </div>;
