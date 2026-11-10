@@ -152,7 +152,7 @@ export class BookingService {
     return this.db.appointment.findMany({ where: { clientId: userId },
       select: { id: true, tenantId: true, serviceId: true, employeeMembershipId: true, startsAt: true, endsAt: true, status: true, priceCents: true,
         service: { select: { name: true } }, services: { select: { service: { select: { id: true, name: true } } } },
-        tenant: { select: { name: true, slug: true, timezone: true } },
+        tenant: { select: { name: true, slug: true, timezone: true, bookingAdvanceDays: true } },
         employee: { select: { user: { select: { name: true } } } } },
       orderBy: { startsAt: "desc" }, take: 100 });
   }
