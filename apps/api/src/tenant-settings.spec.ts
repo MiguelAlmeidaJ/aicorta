@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { validate } from "class-validator";
+import { plainToInstance } from "class-transformer";
 import { TenantSettingsService, UpdateTenantSettingsDto } from "./tenant-settings";
 
 test("UF em branco é opcional ao atualizar somente o slug", async () => {
@@ -85,4 +86,24 @@ test("CEP e coordenadas fora do padrão são rejeitados", async () => {
     postalCode:"36660",latitude:-95,longitude:200,
   });
   assert.equal((await validate(dto)).length,3);
+});
+
+test("prazo de reservas valida números inteiros entre 1 e 90 dias", async () => {
+  assert.deepEqual(await validate(Object.assign(new UpdateTenantSettingsDto(), { bookingAdvanceDays: 21 })), []);
+  assert.ok((await validate(Object.assign(new UpdateTenantSettingsDto(), { bookingAdvanceDays: 0 }))).length > 0);
+  assert.ok((await validate(Object.assign(new UpdateTenantSettingsDto(), { bookingAdvanceDays: 91 }))).length > 0);
+  assert.ok((await validate(Object.assign(new UpdateTenantSettingsDto(), { bookingAdvanceDays: 1.5 }))).length > 0);
+});
+
+test("atualizar apenas prazo de reservas não apaga latitude e longitude", async () => {
+  let data: Record<string, unknown> | undefined;
+  const db = { tenant: {
+    update: async ({ data: patch }: { data: Record<string, unknown> }) => { data = patch; },
+    findUniqueOrThrow: async () => ({ bookingAdvanceDays: 35, coverMime: null, updatedAt: new Date() }),
+  } };
+  const service = new TenantSettingsService(db as never);
+  await service.update("tenant-a", plainToInstance(UpdateTenantSettingsDto, { bookingAdvanceDays: 35 }));
+  assert.equal(data?.bookingAdvanceDays, 35);
+  assert.equal("latitude" in (data ?? {}), false);
+  assert.equal("longitude" in (data ?? {}), false);
 });
