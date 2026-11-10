@@ -35,3 +35,30 @@ test("invalid status transition is rejected", async () => {
   const service = new BookingService(db as never, {} as never);
   await assert.rejects(() => service.finish("tenant", "appointment", "employee", "COMPLETED"), ConflictException);
 });
+
+test("reserva rejeita datas além dos dias autorizados mesmo em chamadas diretas à API", async () => {
+  const db = {
+    service: { findMany: async () => [{ id: "service", priceCents: 2000, durationMinutes: 30 }] },
+    membership: { findFirst: async () => ({ id: "staff" }) },
+    user: { findFirst: async () => ({ id: "client" }) },
+  };
+  const agenda = { tenant: async () => ({ timezone: "America/Sao_Paulo", bookingAdvanceDays: 7 }) };
+  const booking = new BookingService(db as never, agenda as never);
+  await assert.rejects(() => booking.create("tenant", "client", {
+    clientId: "client", serviceId: "service", serviceIds: ["service"], employeeMembershipId: "staff",
+    startsAt: "2099-03-10T12:00:00.000Z",
+  }, true), /Escolha uma data dentro do prazo de agendamento/);
+});
+
+test("remarcação rejeita datas além do prazo antes de consultar horários", async () => {
+  const db = { appointment: { findFirst: async () => ({
+    clientId: "client", serviceId: "service", employeeMembershipId: "staff",
+    startsAt: new Date("2099-03-01T12:00:00Z"),
+    endsAt: new Date("2099-03-01T12:30:00Z"), status: "CONFIRMED",
+    services: [],
+  }) } };
+  const agenda = { tenant: async () => ({ timezone: "America/Sao_Paulo", bookingAdvanceDays: 7 }) };
+  const booking = new BookingService(db as never, agenda as never);
+  await assert.rejects(() => booking.reschedule("tenant", "appointment", "client",
+    "2099-03-10T12:00:00.000Z"), /A remarcação deve respeitar o prazo/);
+});
