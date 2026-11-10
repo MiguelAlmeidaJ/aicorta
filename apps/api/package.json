@@ -1,0 +1,51 @@
+{
+  "name": "@aicorta/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "system:create": "tsx scripts/create-system.ts",
+    "test": "tsx --test src/*.spec.ts",
+    "test:db": "tsc -p tsconfig.test.json --noEmit && tsx --test test/database.integration.ts",
+    "test:e2e": "tsc -p tsconfig.e2e.json && node --test dist-e2e/test/http.integration.js",
+    "test:quality": "pnpm test && pnpm test:db && pnpm test:e2e"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@prisma/client": "^7.0.0",
+    "@prisma/adapter-pg": "^7.0.0",
+    "bcryptjs": "^3.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^17.0.0",
+    "express": "^5.2.1",
+    "pg": "^8.16.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "@nestjs/throttler": "^6.4.0",
+    "nodemailer": "^7.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "prisma": "^7.0.0",
+    "tsx": "^4.20.0",
+    "@types/nodemailer": "^7.0.0"
+  }
+}

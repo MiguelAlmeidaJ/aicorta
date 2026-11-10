@@ -1,0 +1,559 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum GlobalRole {
+  USER
+  SYSTEM
+}
+
+enum TenantRole {
+  ADMIN
+  EMPLOYEE
+  CLIENT
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantSuspensionReason {
+  MANUAL
+  BILLING
+}
+
+enum MonthlyFeeStatus {
+  PENDING
+  PAID
+}
+
+enum BillingAuditAction {
+  CONFIG_UPDATED
+  COMPETENCY_CREATED
+  PAYMENT_CONFIRMED
+  AUTO_SUSPENDED
+  AUTO_REACTIVATED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ServiceOrderStatus {
+  CHECKED_IN
+  IN_PROGRESS
+  CLOSED
+  CANCELLED
+}
+
+enum ServiceOrderItemSource {
+  APPOINTMENT
+  MANUAL
+}
+
+enum ServiceOrderEventType {
+  CHECKED_IN
+  STARTED
+  ITEM_ADDED
+  ITEM_REMOVED
+  DISCOUNT_APPLIED
+  CLOSED
+  CANCELLED
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  OPENING_BALANCE
+  PAYMENT
+  WITHDRAWAL
+  SUPPLY
+  REFUND
+}
+
+enum PaymentMethod {
+  CASH
+  PIX
+  DEBIT_CARD
+  CREDIT_CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  CONFIRMED
+  VOIDED
+}
+
+model User {
+  id                 String             @id @default(uuid()) @db.Uuid
+  name               String
+  username           String             @unique
+  email              String             @unique
+  whatsapp           String             @unique
+  passwordHash       String
+  avatar             Bytes?
+  avatarMime         String?
+  globalRole         GlobalRole         @default(USER)
+  isActive           Boolean            @default(true)
+  sessions           AuthSession[]
+  issuedInvitations  TenantInvitation[] @relation("InvitationIssuer")
+  issuedOwnerInvites OwnerInvite[]      @relation("OwnerInviteIssuer")
+  passwordResets     PasswordReset[]
+  passwordChangedAt  DateTime?
+  memberships        Membership[]
+  ownedTenants       Tenant[]           @relation("TenantOwner")
+  clientBookings     Appointment[]      @relation("BookingClient")
+  clientServiceOrders ServiceOrder[]    @relation("ServiceOrderClient")
+  createdServiceOrders ServiceOrder[]   @relation("ServiceOrderCreator")
+  serviceOrderEvents ServiceOrderEvent[] @relation("ServiceOrderEventActor")
+  openedCashSessions CashSession[]       @relation("CashSessionOpenedBy")
+  closedCashSessions CashSession[]       @relation("CashSessionClosedBy")
+  cashMovements      CashMovement[]      @relation("CashMovementActor")
+  receivedPayments   Payment[]           @relation("PaymentReceivedBy")
+  voidedPayments     Payment[]           @relation("PaymentVoidedBy")
+  confirmedMonthlyFees MonthlyFee[]      @relation("MonthlyFeeConfirmedBy")
+  billingAuditEvents BillingAudit[]       @relation("BillingAuditActor")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model Tenant {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String               @unique
+  timezone            String               @default("America/Sao_Paulo")
+  bookingAdvanceDays  Int                  @default(21)
+  billingDueDay       Int                  @default(10)
+  monthlyFeeCents     Int                  @default(0)
+  billingStartedAt    DateTime             @default(now())
+  status              TenantStatus         @default(ACTIVE)
+  suspensionReason    TenantSuspensionReason?
+  city                String?
+  state               String?
+  neighborhood        String?
+  postalCode          String?
+  street              String?
+  streetNumber        String?
+  complement          String?
+  latitude            Float?
+  longitude           Float?
+  cover               Bytes?
+  coverMime           String?
+  ownerId             String               @db.Uuid
+  owner               User                 @relation("TenantOwner", fields: [ownerId], references: [id])
+  memberships         Membership[]
+  invitations         TenantInvitation[]
+  workWindows         WorkWindow[]
+  timeOffs            TimeOff[]
+  services            Service[]
+  appointments        Appointment[]
+  appointmentServices AppointmentService[]
+  serviceOrders       ServiceOrder[]
+  cashSessions       CashSession[]
+  cashMovements      CashMovement[]
+  payments           Payment[]
+  monthlyFees        MonthlyFee[]
+  billingAuditEvents BillingAudit[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([ownerId])
+}
+
+model MonthlyFee {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  competence    String
+  amountCents   Int
+  dueOn         String
+  overdueAt     DateTime
+  status        MonthlyFeeStatus @default(PENDING)
+  paidAt        DateTime?
+  confirmedById String?          @db.Uuid
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  confirmedBy   User?            @relation("MonthlyFeeConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  auditEvents   BillingAudit[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([tenantId, competence])
+  @@index([tenantId, status, overdueAt])
+}
+
+model BillingAudit {
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String             @db.Uuid
+  monthlyFeeId String?           @db.Uuid
+  actorUserId String?            @db.Uuid
+  action      BillingAuditAction
+  payload     Json?
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  monthlyFee  MonthlyFee?        @relation(fields: [monthlyFeeId], references: [id], onDelete: SetNull)
+  actor       User?              @relation("BillingAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([monthlyFeeId, createdAt])
+}
+
+model Membership {
+  id               String            @id @default(uuid()) @db.Uuid
+  userId           String            @db.Uuid
+  tenantId         String            @db.Uuid
+  role             TenantRole
+  isActive         Boolean           @default(true)
+  appearsInAgenda  Boolean           @default(true)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  services         EmployeeService[]
+  workWindows      WorkWindow[]
+  timeOffs         TimeOff[]
+  employeeBookings Appointment[]     @relation("BookingEmployee")
+  employeeServiceOrders ServiceOrder[] @relation("ServiceOrderEmployee")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([userId, tenantId])
+  @@unique([id, tenantId])
+  @@index([tenantId, role])
+}
+
+model Service {
+  id                  String               @id @default(uuid()) @db.Uuid
+  tenantId            String               @db.Uuid
+  name                String
+  description         String?
+  durationMinutes     Int
+  priceCents          Int
+  image               Bytes?
+  imageMime           String?
+  isActive            Boolean              @default(true)
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employees           EmployeeService[]
+  appointments        Appointment[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  appointmentServices AppointmentService[]
+  serviceOrderItems   ServiceOrderItem[]
+
+  @@unique([id, tenantId])
+  @@index([tenantId, isActive])
+}
+
+model EmployeeService {
+  membershipId String     @db.Uuid
+  serviceId    String     @db.Uuid
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  service      Service    @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, serviceId])
+}
+
+model Appointment {
+  id                   String               @id @default(uuid()) @db.Uuid
+  tenantId             String               @db.Uuid
+  serviceId            String               @db.Uuid
+  employeeMembershipId String               @db.Uuid
+  clientId             String               @db.Uuid
+  startsAt             DateTime
+  endsAt               DateTime
+  status               AppointmentStatus    @default(PENDING)
+  priceCents           Int
+  notes                String?
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  service              Service              @relation(fields: [serviceId, tenantId], references: [id, tenantId])
+  services             AppointmentService[]
+  employee             Membership           @relation("BookingEmployee", fields: [employeeMembershipId, tenantId], references: [id, tenantId])
+  client               User                 @relation("BookingClient", fields: [clientId], references: [id])
+  serviceOrder         ServiceOrder?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([tenantId, startsAt])
+  @@index([tenantId, employeeMembershipId, startsAt])
+  @@index([clientId, startsAt])
+}
+
+model ServiceOrder {
+  id                   String             @id @default(uuid()) @db.Uuid
+  tenantId             String             @db.Uuid
+  appointmentId        String             @unique @db.Uuid
+  employeeMembershipId String             @db.Uuid
+  clientId             String             @db.Uuid
+  createdById          String             @db.Uuid
+  status               ServiceOrderStatus @default(CHECKED_IN)
+  subtotalCents        Int                @default(0)
+  discountCents        Int                @default(0)
+  discountReason       String?
+  totalCents           Int                @default(0)
+  checkedInAt          DateTime           @default(now())
+  startedAt            DateTime?
+  closedAt             DateTime?
+  cancelledAt          DateTime?
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointment          Appointment        @relation(fields: [appointmentId], references: [id])
+  employee             Membership         @relation("ServiceOrderEmployee", fields: [employeeMembershipId, tenantId], references: [id, tenantId])
+  client               User               @relation("ServiceOrderClient", fields: [clientId], references: [id])
+  createdBy            User               @relation("ServiceOrderCreator", fields: [createdById], references: [id])
+  items                ServiceOrderItem[]
+  events               ServiceOrderEvent[]
+  payments             Payment[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, clientId, createdAt])
+  @@index([tenantId, employeeMembershipId, createdAt])
+}
+
+model ServiceOrderItem {
+  id             String                 @id @default(uuid()) @db.Uuid
+  serviceOrderId String                 @db.Uuid
+  tenantId       String                 @db.Uuid
+  serviceId      String?                @db.Uuid
+  source         ServiceOrderItemSource
+  description    String
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+  serviceOrder   ServiceOrder           @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  service        Service?               @relation(fields: [serviceId], references: [id])
+  createdAt      DateTime               @default(now())
+
+  @@index([serviceOrderId])
+  @@index([tenantId, serviceId])
+}
+
+model ServiceOrderEvent {
+  id             String                @id @default(uuid()) @db.Uuid
+  serviceOrderId String                @db.Uuid
+  tenantId       String                @db.Uuid
+  actorUserId    String                @db.Uuid
+  type           ServiceOrderEventType
+  payload        Json?
+  serviceOrder   ServiceOrder          @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  actor           User                  @relation("ServiceOrderEventActor", fields: [actorUserId], references: [id])
+  createdAt       DateTime              @default(now())
+
+  @@index([serviceOrderId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model CashSession {
+  id                   String            @id @default(uuid()) @db.Uuid
+  tenantId             String            @db.Uuid
+  openedById           String            @db.Uuid
+  closedById           String?           @db.Uuid
+  status               CashSessionStatus @default(OPEN)
+  openingBalanceCents  Int
+  expectedBalanceCents Int
+  countedBalanceCents  Int?
+  differenceCents      Int?
+  openingNotes         String?
+  closingNotes         String?
+  openedAt             DateTime          @default(now())
+  closedAt             DateTime?
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  openedBy             User              @relation("CashSessionOpenedBy", fields: [openedById], references: [id])
+  closedBy             User?             @relation("CashSessionClosedBy", fields: [closedById], references: [id])
+  movements            CashMovement[]
+  payments             Payment[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, status, openedAt])
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  serviceOrderId String        @db.Uuid
+  cashSessionId  String        @db.Uuid
+  receivedById   String        @db.Uuid
+  voidedById     String?       @db.Uuid
+  method         PaymentMethod
+  status         PaymentStatus @default(CONFIRMED)
+  amountCents    Int
+  reference      String?
+  voidReason     String?
+  voidedAt       DateTime?
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  serviceOrder   ServiceOrder  @relation(fields: [serviceOrderId, tenantId], references: [id, tenantId])
+  cashSession    CashSession   @relation(fields: [cashSessionId, tenantId], references: [id, tenantId])
+  receivedBy     User          @relation("PaymentReceivedBy", fields: [receivedById], references: [id])
+  voidedBy       User?         @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
+  movements      CashMovement[]
+  createdAt      DateTime      @default(now())
+
+  @@unique([id, tenantId])
+  @@index([tenantId, serviceOrderId, status])
+  @@index([tenantId, cashSessionId, createdAt])
+}
+
+model CashMovement {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  cashSessionId String           @db.Uuid
+  paymentId     String?          @db.Uuid
+  actorUserId   String           @db.Uuid
+  type          CashMovementType
+  amountCents   Int
+  reason        String?
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cashSession   CashSession      @relation(fields: [cashSessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  payment       Payment?         @relation(fields: [paymentId, tenantId], references: [id, tenantId])
+  actor         User             @relation("CashMovementActor", fields: [actorUserId], references: [id])
+  createdAt     DateTime         @default(now())
+
+  @@index([cashSessionId, createdAt])
+  @@index([tenantId, type, createdAt])
+  @@index([paymentId])
+}
+
+model AppointmentService {
+  appointmentId String      @db.Uuid
+  serviceId     String      @db.Uuid
+  nameSnapshot  String?
+  priceCentsSnapshot Int?
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service       Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id])
+  tenantId      String?     @db.Uuid
+
+  @@id([appointmentId, serviceId])
+  @@index([serviceId])
+}
+
+model AuthSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordReset {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model TenantInvitation {
+  id         String     @id @default(uuid()) @db.Uuid
+  tenantId   String     @db.Uuid
+  issuedById String     @db.Uuid
+  email      String
+  role       TenantRole
+  tokenHash  String     @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  issuedBy   User       @relation("InvitationIssuer", fields: [issuedById], references: [id])
+
+  @@index([tenantId, email])
+  @@index([expiresAt])
+}
+
+model WorkWindow {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @db.Uuid
+  membershipId String?     @db.Uuid
+  weekday      Int
+  startMinute  Int
+  endMinute    Int
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  membership   Membership? @relation(fields: [membershipId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, membershipId, weekday])
+}
+
+model TimeOff {
+  id           String     @id @default(uuid()) @db.Uuid
+  tenantId     String     @db.Uuid
+  membershipId String     @db.Uuid
+  startsAt     DateTime
+  endsAt       DateTime
+  reason       String?
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  membership   Membership @relation(fields: [membershipId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, membershipId, startsAt])
+}
+
+model OwnerInvite {
+  id            String    @id @default(uuid()) @db.Uuid
+  issuedById    String    @db.Uuid
+  referenceName String
+  billingDueDay Int
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  issuedBy      User      @relation("OwnerInviteIssuer", fields: [issuedById], references: [id])
+
+  @@index([expiresAt])
+  @@index([issuedById, createdAt])
+}
+
+model PlatformBrand {
+  id                      String   @id @default("platform")
+  name                    String   @default("AICorta")
+  black                   String   @default("#000000")
+  navy                    String   @default("#050A30")
+  gold                    String   @default("#F2C225")
+  silver                  String   @default("#D9D9D9")
+  logo                    Bytes?
+  logoMime                String?
+  darkLogo                Bytes?
+  darkLogoMime            String?
+  favicon                 Bytes?
+  faviconMime             String?
+  defaultTenantCover      Bytes?
+  defaultTenantCoverMime  String?
+  defaultServiceImage     Bytes?
+  defaultServiceImageMime String?
+  defaultProfileImage     Bytes?
+  defaultProfileImageMime String?
+  updatedAt               DateTime @updatedAt
+}
+
+model PlatformFaq {
+  id        String   @id @default(uuid()) @db.Uuid
+  question  String   @db.VarChar(220)
+  answer    String   @db.VarChar(3000)
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+}

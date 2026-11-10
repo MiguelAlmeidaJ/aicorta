@@ -1,0 +1,1 @@
+ALTER TABLE "Membership" ADD COLUMN "appearsInAgenda" BOOLEAN NOT NULL DEFAULT TRUE;
