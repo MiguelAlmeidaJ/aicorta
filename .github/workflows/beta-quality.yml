@@ -1,8 +1,8 @@
-name: Beta quality gate
+name: AICorta quality gate
 
 on:
   push:
-    branches: [beta]
+    branches: [beta, main]
   pull_request:
     branches: [beta]
   workflow_dispatch:
