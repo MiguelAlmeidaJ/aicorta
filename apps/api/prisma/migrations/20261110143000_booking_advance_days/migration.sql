@@ -1,0 +1,1 @@
+ALTER TABLE "Tenant" ADD COLUMN "bookingAdvanceDays" INTEGER NOT NULL DEFAULT 21;
