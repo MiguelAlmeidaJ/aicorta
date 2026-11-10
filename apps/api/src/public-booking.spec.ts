@@ -78,3 +78,30 @@ test("diretório público usa a capa própria ou a capa padrão do SYSTEM, nunca
   assert.equal(items[0].hasCustomCover, true);
   assert.equal(items[1].hasCustomCover, false);
 });
+
+test("consulta semanal retorna apenas os horários efetivamente disponíveis em cada dia", async () => {
+  const requested: string[] = [];
+  const db = { tenant: { findFirst: async () => ({
+    id: "tenant", name: "Barbearia", slug: "barbearia", timezone: "America/Sao_Paulo",
+  }) } };
+  const agenda = { availabilityForServices: async (_tenant: string, _services: string[], _member: string, date: string) => {
+    requested.push(date);
+    return { slots: date === "2026-11-11" ? ["2026-11-11T12:00:00.000Z"] : [] };
+  } };
+  const service = new PublicBookingService(db as never, agenda as never, {} as never,
+    { refreshTenantState: async () => ({ operational: true }) } as never);
+  const result = await service.availableDays("barbearia", ["service"], "professional", "2026-11-10");
+  assert.equal(result.days.length, 7);
+  assert.deepEqual(requested, [
+    "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13",
+    "2026-11-14", "2026-11-15", "2026-11-16",
+  ]);
+  assert.deepEqual(result.days[0].slots, []);
+  assert.deepEqual(result.days[1].slots, ["2026-11-11T12:00:00.000Z"]);
+});
+
+test("consulta semanal rejeita datas inválidas e lista de serviços vazia", async () => {
+  const service = new PublicBookingService({} as never, {} as never, {} as never, {} as never);
+  await assert.rejects(() => service.availableDays("barbearia", [], "professional", "2026-11-10"));
+  await assert.rejects(() => service.availableDays("barbearia", ["service"], "professional", "invalida"));
+});
