@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Instagram, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { BrandLogo } from "../brand/brand-provider";
 
 const navigation = [
