@@ -23,7 +23,7 @@ export class PublicBookingService {
     private readonly bookings: BookingService, private readonly billing: BillingService) {}
   async tenant(slug: string) {
     const tenant = await this.db.tenant.findFirst({ where: { slug, status: "ACTIVE" },
-      select: { id: true, name: true, slug: true, timezone: true, city: true, state: true,
+      select: { id: true, name: true, slug: true, timezone: true, bookingAdvanceDays: true, city: true, state: true,
         neighborhood: true, postalCode: true, street: true, streetNumber: true, complement: true,
         latitude: true, longitude: true, coverMime: true, updatedAt: true } });
     if (!tenant) throw new BadRequestException("Barbearia não encontrada");
