@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, CalendarCheck2, CalendarClock, CalendarDays, Check, ChevronDown,
-  Clock3, RefreshCw, Scissors, UserRound, X,
+  Clock3, ChevronLeft, ChevronRight, RefreshCw, Scissors, UserRound, X,
 } from "lucide-react";
 import { BrandLogo } from "../../components/brand/brand-provider";
 import { UserMenu } from "../../components/auth/user-menu";
@@ -19,6 +19,7 @@ type Booking = {
   service: { name: string }; services: { service: { id: string; name: string } }[]; employee: { user: { name: string } };
 };
 type SlotsResponse = { slots: string[] };
+type AvailableWeek = { timezone: string; days: { date: string; slots: string[] }[] };
 type Filter = "UPCOMING" | "HISTORY" | "ALL";
 
 function localToday(timezone: string) {
@@ -55,6 +56,9 @@ export default function MyBookingsPage() {
   const [dates, setDates] = useState<Record<string, string>>({});
   const [slots, setSlots] = useState<Record<string, string[]>>({});
   const [loadingSlots, setLoadingSlots] = useState<string | null>(null);
+  const [weeks, setWeeks] = useState<Record<string, number>>({});
+  const [availableWeeks, setAvailableWeeks] = useState<Record<string, AvailableWeek>>({});
+  const [loadingWeek, setLoadingWeek] = useState<string | null>(null);
   const slotRequestIds = useRef<Record<string, number>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -109,6 +113,45 @@ export default function MyBookingsPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível cancelar.");
     } finally { setBusy(null); }
+  }
+
+  async function loadAvailableWeek(item: Booking, offset: number) {
+    const id = (slotRequestIds.current[item.id] ?? 0) + 1;
+    slotRequestIds.current[item.id] = id;
+    const today = localToday(item.tenant.timezone);
+    const horizon = Math.max(1, Math.min(90, item.tenant.bookingAdvanceDays ?? 21));
+    const startDate = plusDays(today, offset * 7);
+    if (offset < 0 || startDate > plusDays(today, horizon)) return;
+    setWeeks(current => ({ ...current, [item.id]: offset }));
+    setAvailableWeeks(current => {
+      const copy = { ...current }; delete copy[item.id]; return copy;
+    });
+    setDates(current => ({ ...current, [item.id]: "" }));
+    setSlots(current => ({ ...current, [item.id]: [] }));
+    setLoadingWeek(item.id); setError("");
+    try {
+      const query = new URLSearchParams({
+        from: startDate, membershipId: item.employeeMembershipId,
+        serviceIds: (item.services.length
+          ? item.services.map(row => row.service.id) : [item.serviceId]).join(","),
+      });
+      const result = await apiJson<AvailableWeek>(
+        `/b/${encodeURIComponent(item.tenant.slug)}/available-days?${query}`);
+      if (slotRequestIds.current[item.id] !== id) return;
+      setAvailableWeeks(current => ({ ...current, [item.id]: result }));
+    } catch (reason) {
+      if (slotRequestIds.current[item.id] !== id) return;
+      setError(reason instanceof Error ? reason.message : "Não foi possível consultar a agenda da barbearia.");
+    } finally {
+      if (slotRequestIds.current[item.id] === id) setLoadingWeek(null);
+    }
+  }
+
+  function pickAvailableDate(item: Booking, date: string) {
+    const found = availableWeeks[item.id]?.days.find(row => row.date === date);
+    if (!found?.slots.length) return;
+    setDates(current => ({ ...current, [item.id]: date }));
+    setSlots(current => ({ ...current, [item.id]: found.slots }));
   }
 
   async function getSlots(item: Booking, date: string) {
@@ -266,7 +309,10 @@ export default function MyBookingsPage() {
               </div>
               {canManage && <div className="mt-5 flex flex-wrap gap-2 border-t border-[#f0f1ec] pt-4">
                 <button type="button" disabled={busy === item.id}
-                  onClick={() => { setOpen(isOpen ? null : item.id); setError(""); }}
+                  onClick={() => {
+                    setOpen(isOpen ? null : item.id); setError("");
+                    if (!isOpen) void loadAvailableWeek(item, 0);
+                  }}
                   aria-expanded={isOpen}
                   className="inline-flex items-center gap-2 rounded-xl border border-[#e3e6de] bg-white px-4 py-2.5 text-xs font-semibold transition hover:bg-[#f5f6f2] disabled:opacity-40">
                   <CalendarClock size={15}/> Remarcar <ChevronDown size={14} className={isOpen ? "rotate-180" : ""}/>
@@ -279,28 +325,86 @@ export default function MyBookingsPage() {
               {active(item.status) && !canManage && <p className="mt-4 text-xs text-[#999e93]">
                 Cancelamento e remarcação exigem 2 horas de antecedência.
               </p>}
-              {isOpen && canManage && <div className="mt-4 rounded-2xl border border-[#e9eae4] bg-[#f8f9f5] p-5">
-                <h4 className="text-xs font-bold">Escolha uma nova data</h4>
-                <p className="mt-1 text-xs leading-5 text-[#92978f]">
-                  Escolha uma data até {formatDate(plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21) + "T12:00:00.000Z", "UTC").split(" às ")[0]}.
-                  Somente horários realmente disponíveis poderão ser selecionados.
+              {isOpen && canManage && <div className="mt-4 rounded-2xl border border-[#e9eae4] bg-[#f8f9f5] p-4 sm:p-5">
+                <h4 className="text-[13px] font-bold text-[#2b342a]">Escolha entre as datas disponíveis</h4>
+                <p className="mt-1 text-[12px] leading-5 text-[#828c7e]">
+                  Apenas os dias e horários liberados por {item.tenant.name} estão disponíveis para remarcação.
                 </p>
-                <input type="date" aria-label={`Nova data para ${item.services.length ? item.services.map(row => row.service.name).join(", ") : item.service.name}`}
-                  min={localToday(zone)}
-                  max={plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21)}
-                  value={dates[item.id] ?? ""}
-                  onChange={event => void getSlots(item, event.target.value)}
-                  className="mt-4 w-full max-w-xs rounded-xl border border-[#e2e5dc] bg-white px-4 py-3 text-sm outline-none focus:border-[#777d72]"/>
-                {loadingSlots === item.id ? <p className="mt-4 text-xs text-[#959b90]">Buscando horários disponíveis...</p> :
-                  dates[item.id] && (slots[item.id]?.length ?? 0) === 0 ?
-                    <p className="mt-4 text-xs text-[#959b90]">Nenhum horário disponível nessa data. Tente outro dia.</p> :
-                    <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[12px] font-semibold text-[#3d493a]">
+                    {formatDate(plusDays(localToday(zone), (weeks[item.id] ?? 0) * 7) + "T12:00:00.000Z", "UTC").split(" às ")[0]}
+                    {" — "}
+                    {formatDate(plusDays(localToday(zone), (weeks[item.id] ?? 0) * 7 + 6) + "T12:00:00.000Z", "UTC").split(" às ")[0]}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button type="button" aria-label="Semana anterior"
+                      disabled={(weeks[item.id] ?? 0) === 0 || loadingWeek === item.id || busy === item.id}
+                      onClick={() => void loadAvailableWeek(item, (weeks[item.id] ?? 0) - 1)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dfe5da] bg-white disabled:opacity-35">
+                      <ChevronLeft size={17}/>
+                    </button>
+                    <button type="button" aria-label="Próxima semana"
+                      disabled={plusDays(localToday(zone), ((weeks[item.id] ?? 0) + 1) * 7) >
+                        plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21) ||
+                        loadingWeek === item.id || busy === item.id}
+                      onClick={() => void loadAvailableWeek(item, (weeks[item.id] ?? 0) + 1)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dfe5da] bg-white disabled:opacity-35">
+                      <ChevronRight size={17}/>
+                    </button>
+                  </div>
+                </div>
+                {loadingWeek === item.id ?
+                  <div role="status" className="mt-3 flex min-h-[90px] items-center justify-center rounded-xl border border-[#e8ece5] bg-white text-[12px] text-[#7b8577]">
+                    Consultando a disponibilidade da barbearia...
+                  </div> :
+                  availableWeeks[item.id] ? <>
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Dias disponíveis para remarcação">
+                      {availableWeeks[item.id].days
+                        .filter(row => row.date <= plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21))
+                        .map(row => {
+                          const available = row.slots.length > 0;
+                          const chosen = dates[item.id] === row.date;
+                          const weekday = new Intl.DateTimeFormat("pt-BR", {
+                            weekday: "short", timeZone: "UTC",
+                          }).format(new Date(row.date + "T12:00:00.000Z")).replace(".", "");
+                          return <button key={row.date} type="button"
+                            disabled={!available || busy === item.id}
+                            aria-pressed={chosen}
+                            onClick={() => pickAvailableDate(item, row.date)}
+                            className={`flex min-h-[84px] flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition
+                              ${chosen ? "border-[#242c22] bg-[#242c22] text-white" :
+                                available ? "border-[#d9e3d4] bg-white text-[#2d3b2a] hover:border-[#83947e]" :
+                                "border-[#e7eae4] bg-[#f0f1ed] text-[#9aa297] opacity-65"}`}>
+                            <span className="text-[11px] font-semibold capitalize">{weekday}</span>
+                            <strong className="mt-1 text-xl tabular-nums">{row.date.slice(-2)}</strong>
+                            <span className={`mt-1 text-[10px] ${chosen ? "text-white/80" :
+                              available ? "text-[#658061]" : "text-[#9aa297]"}`}>
+                              {available ? `${row.slots.length} horário(s)` : "Indisponível"}
+                            </span>
+                          </button>;
+                        })}
+                    </div>
+                    {!availableWeeks[item.id].days.some(row => row.slots.length) &&
+                      <p className="mt-4 text-[12px] leading-5 text-[#7c8777]">
+                        Nenhum horário livre nesta semana. Avance para consultar as próximas datas.
+                      </p>}
+                  </> : <button type="button" onClick={() => void loadAvailableWeek(item, weeks[item.id] ?? 0)}
+                    className="mt-4 rounded-xl border border-[#dfe5da] bg-white px-4 py-3 text-xs font-semibold">
+                    Tentar consultar novamente
+                  </button>}
+                {dates[item.id] && <div className="mt-5 border-t border-[#e1e6de] pt-5">
+                  <h5 className="text-[12px] font-bold">Horários livres para o dia selecionado</h5>
+                  {loadingSlots === item.id ? <p className="mt-3 text-xs text-[#8c9589]">Atualizando horários...</p> :
+                    (slots[item.id]?.length ?? 0) > 0 ? <div className="mt-3 flex flex-wrap gap-2">
                       {(slots[item.id] ?? []).map(iso => <button key={iso} type="button"
                         disabled={busy === item.id} onClick={() => void reschedule(item, iso)}
-                        className="rounded-xl border border-[#e4e7df] bg-white px-4 py-2.5 text-xs font-bold transition hover:border-[#1b1d18] hover:bg-[#eceee8] disabled:opacity-40">
+                        className="min-h-10 rounded-xl border border-[#dae3d6] bg-white px-4 py-2 text-xs font-bold transition hover:border-[#273425] hover:bg-[#eaf0e7] disabled:opacity-40">
                         {formatTime(iso, zone)}
                       </button>)}
-                    </div>}
+                    </div> : <p className="mt-3 text-xs text-[#8c9589]">
+                      Este dia não tem mais horários disponíveis. Escolha outro.
+                    </p>}
+                </div>}
               </div>}
             </article>;
           })}
