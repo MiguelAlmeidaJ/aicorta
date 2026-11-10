@@ -2,8 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element -- imagens de capa hospedadas na API do AICorta */
 import Link from "next/link";
-import { type FormEvent, useEffect, useState } from "react";
-import { ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
 import { PublicHeader } from "../components/public/public-header";
 import { PublicFooter } from "../components/public/public-footer";
 import { API_URL, apiJson } from "../lib/api";
@@ -24,11 +24,27 @@ function ShopCover({ item, className = "" }: { item: Establishment; className?: 
   const [failed, setFailed] = useState(false);
   const src = item.coverUrl ? `${API_URL}${item.coverUrl}` : null;
   useEffect(() => setFailed(false), [src]);
-  return src && !failed ? <img src={src} alt={`Capa de ${item.name}`} loading="lazy"
-    onError={() => setFailed(true)} className={`${item.hasCustomCover ? "object-cover" : "object-contain px-8 py-6 sm:px-12 sm:py-8"} h-full w-full ${className}`}/> :
-    <div className="flex h-full w-full items-center justify-center bg-[#ecede8] text-[#858f80]" aria-label="Sem imagem de capa">
-      <Scissors size={38} strokeWidth={1.2}/>
-    </div>;
+  if (!src || failed) return <div className={`flex h-full w-full items-center justify-center bg-[#e9ebe5] text-[#8a9485] ${className}`} aria-label="Sem imagem de capa">
+    <Scissors size={38} strokeWidth={1.2}/>
+  </div>;
+  return <div className={`relative h-full w-full overflow-hidden bg-[#eaede7] ${className}`}>
+    {!item.hasCustomCover && <img src={src} alt="" aria-hidden="true" loading="lazy"
+      className="absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-xl"/>}
+    <img src={src} alt={`Capa de ${item.name}`} loading="lazy" onError={() => setFailed(true)}
+      className={`absolute inset-0 h-full w-full ${item.hasCustomCover
+        ? "object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+        : "object-contain object-center p-3 sm:p-4"}`}/>
+  </div>;
+}
+
+function randomSelection(items: Establishment[]) {
+  const shuffled = [...items];
+  // Em cada carregamento, muda os destaques sem privilegiar um estabelecimento.
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, 12);
 }
 
 export default function HomePage() {
@@ -38,13 +54,43 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [faq, setFaq] = useState<Faq[]>([]);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [canGoPrev, setCanGoPrev] = useState(false);
+  const [canGoNext, setCanGoNext] = useState(false);
+
+  function updateCarouselControls() {
+    const node = carouselRef.current;
+    if (!node) return;
+    setCanGoPrev(node.scrollLeft > 4);
+    setCanGoNext(node.scrollLeft + node.clientWidth < node.scrollWidth - 4);
+  }
+
+  function slideCarousel(direction: -1 | 1) {
+    const node = carouselRef.current;
+    const firstCard = node?.querySelector<HTMLElement>("[data-shop-card]");
+    if (!node || !firstCard) return;
+    node.scrollBy({ left: direction * (firstCard.offsetWidth + 20), behavior: "smooth" });
+  }
+
+  useEffect(() => {
+    const refresh = () => updateCarouselControls();
+    window.addEventListener("resize", refresh);
+    return () => window.removeEventListener("resize", refresh);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const node = carouselRef.current;
+    node?.scrollTo({ left: 0, behavior: "instant" });
+    updateCarouselControls();
+  }, [establishments, loading]);
 
   async function search(term: string) {
     setLoading(true); setError("");
     try {
       const value = term.trim();
       const params = value ? `?q=${encodeURIComponent(value)}` : "";
-      setEstablishments(await apiJson<Establishment[]>(`/public/tenants${params}`));
+      setEstablishments(randomSelection(await apiJson<Establishment[]>(`/public/tenants${params}`)));
       setSearched(value);
     } catch {
       setError("Não foi possível consultar os estabelecimentos. Tente novamente.");
@@ -60,7 +106,7 @@ export default function HomePage() {
   useEffect(() => {
     let active = true;
     apiJson<Establishment[]>("/public/tenants")
-      .then(items => { if (active) setEstablishments(items); })
+      .then(items => { if (active) setEstablishments(randomSelection(items)); })
       .catch(() => { if (active) setError("Não foi possível carregar as barbearias."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -171,64 +217,67 @@ export default function HomePage() {
     </section>
 
     <section id="barbearias" className="mx-auto max-w-[1180px] scroll-mt-8 px-5 pb-20 pt-14 sm:px-8 sm:pb-24 sm:pt-20" aria-labelledby="establishments-heading">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-[#e1e5dc] pb-7">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#9c8053]">
-            {searched ? "Sua busca" : "Explore e agende"}
-          </p>
-          <h2 id="establishments-heading" className="mt-2 text-[clamp(1.9rem,3.7vw,2.65rem)] font-semibold tracking-[-.055em] leading-[1.15]">
-            {searched ? "Barbearias encontradas" : "Barbearias para conhecer"}
-          </h2>
-          <p className="mt-3 text-[13px] leading-6 text-[#7e887a]">
-            {searched ? <>Resultados para <strong className="font-semibold text-[#30392f]">{searched}</strong>.</>
-              : "Conheça os estabelecimentos, veja os serviços e escolha seu próximo horário."}
-          </p>
-        </div>
-        {!loading && !error && <span aria-live="polite"
-          className="rounded-full border border-[#dce2d8] bg-white px-4 py-2 text-[12px] font-semibold text-[#576152]">
-          {establishments.length} {establishments.length === 1 ? "barbearia" : "barbearias"}
-        </span>}
+      <div className="mx-auto mb-9 max-w-[710px] text-center sm:mb-11">
+        <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#9c8053]">
+          {searched ? "Sua busca" : "Explore e agende"}
+        </p>
+        <h2 id="establishments-heading" className="mt-3 text-[clamp(1.9rem,3.7vw,2.65rem)] font-semibold leading-[1.15] tracking-[-.055em]">
+          {searched ? "Barbearias encontradas" : "Barbearias para conhecer"}
+        </h2>
+        <p className="mt-3 text-[13px] leading-6 text-[#7e887a]">
+          {searched ? <>Resultados para <strong className="font-semibold text-[#30392f]">{searched}</strong>.</>
+            : "Conheça os estabelecimentos, veja os serviços e escolha seu próximo horário."}
+        </p>
       </div>
       {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-      {loading ? <div className="grid gap-5 lg:grid-cols-2">
-        {[1,2].map(index => <div key={index} className="overflow-hidden rounded-[20px] border border-[#e5e9e1] bg-white sm:flex">
-          <div className="h-[225px] animate-pulse bg-[#e5e8e0] sm:h-[238px] sm:w-[44%]"/>
-          <div className="flex-1 space-y-4 p-7"><div className="h-6 w-2/3 animate-pulse rounded bg-[#eceee8]"/>
+      {loading ? <div className="flex gap-5 overflow-hidden">
+        {[1,2,3].map(index => <div key={index} className="w-full shrink-0 overflow-hidden rounded-[18px] border border-[#e5e9e1] bg-white sm:w-[calc((100%-20px)/2)] lg:w-[calc((100%-40px)/3)]">
+          <div className="aspect-[16/10] animate-pulse bg-[#e5e8e0]"/>
+          <div className="space-y-3 p-5"><div className="h-5 w-2/3 animate-pulse rounded bg-[#eceee8]"/>
             <div className="h-4 w-full animate-pulse rounded bg-[#eceee8]"/>
-            <div className="h-12 animate-pulse rounded-lg bg-[#eceee8]"/></div>
+            <div className="h-11 animate-pulse rounded-lg bg-[#eceee8]"/></div>
         </div>)}
-      </div> : establishments.length ? <div className="grid gap-5 lg:grid-cols-2">
-        {establishments.map(item => <article key={item.id}
-          className="group flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-[#e2e5de] bg-white shadow-[0_8px_28px_rgba(18,25,17,.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c5cfc1] hover:shadow-[0_18px_42px_rgba(18,25,17,.075)] sm:flex-row lg:min-h-[254px]">
-          <Link href={`/b/${item.slug}`} aria-label={`Conhecer ${item.name}`}
-            className={`relative block h-[195px] shrink-0 overflow-hidden sm:h-auto sm:w-[42%] ${item.hasCustomCover ? "bg-[#e1e5df]" : "bg-[#f4f5f1]"}`}>
-            <ShopCover item={item} className={item.hasCustomCover
-              ? "transition-transform duration-500 group-hover:scale-[1.035]"
-              : "transition-transform duration-500 group-hover:scale-[1.015]"}/>
-            {!item.hasCustomCover && <span className="pointer-events-none absolute inset-x-4 bottom-4 text-center text-[10px] font-semibold uppercase tracking-[.12em] text-[#a6ada1]">Identidade visual do AICorta</span>}
-          </Link>
-          <div className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
-            <div className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.14em] text-[#9a8054]">
-              <span className="h-[5px] w-[5px] rounded-full bg-[#d4b164]"/> Estabelecimento
+      </div> : establishments.length ? <div>
+        <div ref={carouselRef} onScroll={updateCarouselControls} aria-label="Carrossel de barbearias"
+          className="flex snap-x snap-mandatory gap-5 overflow-x-auto overscroll-x-contain pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {establishments.map(item => <article key={item.id} data-shop-card
+            className="group flex w-full shrink-0 snap-start flex-col overflow-hidden rounded-[18px] border border-[#e2e5de] bg-white shadow-[0_6px_22px_rgba(18,25,17,.035)] transition-colors hover:border-[#c5cfc1] sm:w-[calc((100%-20px)/2)] lg:w-[calc((100%-40px)/3)]">
+            <Link href={`/b/${item.slug}`} aria-label={`Conhecer ${item.name}`}
+              className="relative block aspect-[16/10] shrink-0 overflow-hidden bg-[#eef0ea]">
+              <ShopCover item={item}/>
+            </Link>
+            <div className="flex flex-1 flex-col p-5">
+              <h3 className="line-clamp-1 text-[19px] font-semibold leading-snug tracking-[-.035em] text-[#202620]">{item.name}</h3>
+              <p className="mt-2.5 flex min-h-[42px] items-start gap-2 text-[12px] leading-5 text-[#768072]">
+                <MapPin size={15} className="mt-0.5 shrink-0 text-[#aa8c56]"/>
+                <span className="line-clamp-2">{locationLabel(item)}</span>
+              </p>
+              <div className="mt-auto flex items-center gap-2 pt-5">
+                <Link href={`/b/${item.slug}`} className="inline-flex min-h-[44px] flex-1 items-center justify-between gap-2 rounded-xl bg-[#1d221c] px-4 text-[12px] font-semibold text-white transition hover:bg-[#343c32]">
+                  Agendar horário <ArrowUpRight size={16}/>
+                </Link>
+                {item.latitude != null && item.longitude != null &&
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`}
+                    target="_blank" rel="noopener noreferrer" title="Como chegar"
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl border border-[#dfe5da] text-[#4e5c4a] transition hover:bg-[#f2f5ef]"
+                    aria-label={`Como chegar à ${item.name}`}><MapPin size={18}/></a>}
+              </div>
             </div>
-            <h3 className="text-[21px] font-semibold leading-tight tracking-[-.045em] text-[#202620]">{item.name}</h3>
-            <p className="mt-3 flex items-start gap-2 text-[12px] leading-5 text-[#768072]">
-              <MapPin size={16} className="mt-0.5 shrink-0 text-[#aa8c56]"/>
-              <span className="line-clamp-2">{locationLabel(item)}</span>
-            </p>
-            <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-              <Link href={`/b/${item.slug}`}
-                className="inline-flex min-h-[45px] flex-1 items-center justify-between gap-3 rounded-xl bg-[#1d221c] px-4 text-[12px] font-semibold text-white transition hover:bg-[#343c32]">
-                Agendar horário <ArrowUpRight size={16}/>
-              </Link>
-              {item.latitude != null && item.longitude != null &&
-                <a href={`https://www.google.com/maps/dir/?api=1&destination=${item.latitude},${item.longitude}`}
-                  target="_blank" rel="noopener noreferrer" title="Como chegar"
-                  className="flex h-[45px] w-[45px] shrink-0 items-center justify-center rounded-xl border border-[#dfe5da] text-[#4e5c4a] transition hover:bg-[#f2f5ef]"
-                  aria-label={`Como chegar à ${item.name}`}><MapPin size={18}/></a>}
-            </div>
-          </div>
-        </article>)}
+          </article>)}
+        </div>
+        {establishments.length > 3 && <div className="mt-4 flex items-center justify-center gap-3" aria-label="Navegação do carrossel">
+          <button type="button" onClick={() => slideCarousel(-1)} disabled={!canGoPrev}
+            aria-label="Ver barbearias anteriores"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dce1d8] bg-white text-[#2a3228] transition hover:bg-[#eef1eb] disabled:cursor-not-allowed disabled:opacity-35">
+            <ArrowLeft size={17}/>
+          </button>
+          <span className="text-[11px] font-medium text-[#8a9487]">Deslize para conhecer mais</span>
+          <button type="button" onClick={() => slideCarousel(1)} disabled={!canGoNext}
+            aria-label="Ver próximas barbearias"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dce1d8] bg-white text-[#2a3228] transition hover:bg-[#eef1eb] disabled:cursor-not-allowed disabled:opacity-35">
+            <ArrowRight size={17}/>
+          </button>
+        </div>}
       </div> : <div className="rounded-2xl border border-[#e2e6de] bg-white px-6 py-16 text-center">
         <Search size={27} className="mx-auto text-[#9ca398]"/>
         <h3 className="mt-4 text-base font-semibold">Nenhuma barbearia encontrada</h3>
