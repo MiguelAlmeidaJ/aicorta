@@ -183,7 +183,7 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
     assert.equal(bookingWindow.json.bookingAdvanceDays, 35);
     const publicCatalog = await request("GET", `/api/b/${slugA}`);
     assert.equal(publicCatalog.status, 200);
-    assert.equal(publicCatalog.json.tenant.bookingAdvanceDays, 35);
+    assert.equal((publicCatalog.json.tenant as { bookingAdvanceDays: number }).bookingAdvanceDays, 35);
     assert.equal((await request("PATCH", `/api/tenants/${tenantA}/settings`,
       { bookingAdvanceDays: 1000 }, ownerCookie)).status, 400);
     assert.equal((await request("PATCH", `/api/tenants/${tenantA}/settings`,
