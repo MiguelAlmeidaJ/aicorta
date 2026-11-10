@@ -33,7 +33,7 @@ function ShopCover({ item, className = "" }: { item: Establishment; className?: 
     <img src={src} alt={`Capa de ${item.name}`} loading="lazy" onError={() => setFailed(true)}
       className={`absolute inset-0 h-full w-full ${item.hasCustomCover
         ? "object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
-        : "object-contain object-center p-3 sm:p-4"}`}/>
+        : "object-cover object-center"}`}/>
   </div>;
 }
 

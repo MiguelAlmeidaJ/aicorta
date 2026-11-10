@@ -41,7 +41,7 @@ button:disabled { cursor: not-allowed; }
 .auth input:focus, .booking-steps input:focus, .booking-steps select:focus { outline: 2px solid #b4b6b0; outline-offset: 1px; }
 .auth small, .booking-steps small { color: #858980; font-size: 12px; font-weight: 400; }
 .auth button:disabled { opacity: .5; }
-footer { margin-top: auto; padding: 30px 0; font-size: 12px; color: #858980; }
+footer { margin-top: auto; padding-top: 10px; padding: 0; font-size: 12px; color: #858980; }
 .booking-wrap { width: min(780px, 100%); padding: 50px 0 90px; }
 .booking-wrap h1 { font-size: clamp(36px, 5vw, 60px); font-weight: 800; letter-spacing: -.05em; margin: 14px 0 20px; }
 .booking-wrap p { color: #72776f; }
