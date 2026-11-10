@@ -15,7 +15,7 @@ import { money, StatusPill } from "../../components/dashboard/ui";
 type Booking = {
   id: string; tenantId: string; serviceId: string; employeeMembershipId: string;
   status: string; startsAt: string; endsAt: string; priceCents: number;
-  tenant: { name: string; slug: string; timezone: string };
+  tenant: { name: string; slug: string; timezone: string; bookingAdvanceDays: number };
   service: { name: string }; services: { service: { id: string; name: string } }[]; employee: { user: { name: string } };
 };
 type SlotsResponse = { slots: string[] };
@@ -27,6 +27,11 @@ function localToday(timezone: string) {
   }).formatToParts(new Date());
   const part = (key: string) => parts.find(item => item.type === key)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+function plusDays(ymd: string, amount: number) {
+  const date = new Date(ymd + "T12:00:00.000Z");
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
 }
 function formatDate(value: string, timezone: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -72,6 +77,12 @@ export default function MyBookingsPage() {
   // A carga é reutilizada também após cancelar/remarcar; o callback mantém uma única regra de tratamento.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reservado") === "1") {
+      setMessage("Agendamento realizado! Sua reserva foi recebida e está aguardando confirmação da barbearia.");
+      window.history.replaceState(window.history.state, "", "/meus-agendamentos");
+    }
+  }, []);
 
   const upcoming = useMemo(() => items.filter(item =>
     active(item.status) && new Date(item.endsAt).getTime() >= referenceNow), [items, referenceNow]);
@@ -103,6 +114,12 @@ export default function MyBookingsPage() {
     setDates(current => ({ ...current, [item.id]: date }));
     setSlots(current => ({ ...current, [item.id]: [] }));
     if (!date) return;
+    const today = localToday(item.tenant.timezone);
+    const last = plusDays(today, item.tenant.bookingAdvanceDays ?? 21);
+    if (date < today || date > last) {
+      setError("Escolha uma data dentro do prazo de agendamento definido pela barbearia.");
+      return;
+    }
     setError(""); setLoadingSlots(item.id);
     try {
       const q = new URLSearchParams({
@@ -257,9 +274,13 @@ export default function MyBookingsPage() {
               </p>}
               {isOpen && canManage && <div className="mt-4 rounded-2xl border border-[#e9eae4] bg-[#f8f9f5] p-5">
                 <h4 className="text-xs font-bold">Escolha uma nova data</h4>
-                <p className="mt-1 text-xs text-[#92978f]">Os horários disponíveis são calculados pela barbearia.</p>
+                <p className="mt-1 text-xs leading-5 text-[#92978f]">
+                  Escolha uma data até {formatDate(plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21) + "T12:00:00.000Z", "UTC").split(" às ")[0]}.
+                  Somente horários realmente disponíveis poderão ser selecionados.
+                </p>
                 <input type="date" aria-label={`Nova data para ${item.services.length ? item.services.map(row => row.service.name).join(", ") : item.service.name}`}
                   min={localToday(zone)}
+                  max={plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21)}
                   value={dates[item.id] ?? ""}
                   onChange={event => void getSlots(item, event.target.value)}
                   className="mt-4 w-full max-w-xs rounded-xl border border-[#e2e5dc] bg-white px-4 py-3 text-sm outline-none focus:border-[#777d72]"/>
