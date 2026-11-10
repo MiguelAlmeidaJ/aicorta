@@ -5,7 +5,7 @@ import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { AgendaService } from "./agenda";
-import { inside, localParts, weekday } from "./scheduling-time";
+import { inside, insideBookingHorizon, localParts, weekday } from "./scheduling-time";
 
 function translateDbConflict(error: unknown): never {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
@@ -107,6 +107,9 @@ export class BookingService {
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(startsAt, tenant.timezone);
+    if (!insideBookingHorizon(local.date, tenant.timezone, tenant.bookingAdvanceDays ?? 21)) {
+      throw new BadRequestException("Escolha uma data dentro do prazo de agendamento configurado pela barbearia");
+    }
     const endLocal = localParts(endsAt, tenant.timezone);
     if (local.date !== endLocal.date || endLocal.minute !== local.minute + durationMinutes ||
         local.minute % 15 !== 0) throw new BadRequestException("Horário fora da grade de 15 minutos");
@@ -209,6 +212,9 @@ export class BookingService {
     if (Number.isNaN(start.getTime()) || start <= new Date()) throw new BadRequestException("Novo horário inválido");
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(start, tenant.timezone);
+    if (!insideBookingHorizon(local.date, tenant.timezone, tenant.bookingAdvanceDays ?? 21)) {
+      throw new BadRequestException("A remarcação deve respeitar o prazo de antecedência da barbearia");
+    }
     const serviceIds = item.services.length ? item.services.map(row => row.serviceId) : [item.serviceId];
     const possible = await this.agenda.availabilityForServices(tenantId, serviceIds, item.employeeMembershipId, local.date);
     if (!possible.slots.includes(start.toISOString())) throw new ConflictException("Novo horário indisponível");
