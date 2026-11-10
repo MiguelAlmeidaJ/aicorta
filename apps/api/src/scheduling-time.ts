@@ -46,3 +46,16 @@ export function localToUtc(date: string, minute: number, zone: string): Date | n
   const actual = localParts(result, zone);
   return actual.date === date && actual.minute === minute ? result : null;
 }
+
+/** Restrições inclusivas: hoje até hoje + N dias no fuso da barbearia. */
+export function bookingDateRange(timezone: string, advanceDays: number, now = new Date()) {
+  const today = localParts(now, timezone).date;
+  const last = new Date(today + "T12:00:00.000Z");
+  last.setUTCDate(last.getUTCDate() + Math.max(1, Math.min(90, advanceDays)));
+  return { today, lastDate: last.toISOString().slice(0, 10) };
+}
+export function insideBookingHorizon(date: string, timezone: string, advanceDays: number, now = new Date()) {
+  if (!validDate(date)) return false;
+  const range = bookingDateRange(timezone, advanceDays, now);
+  return date >= range.today && date <= range.lastDate;
+}
