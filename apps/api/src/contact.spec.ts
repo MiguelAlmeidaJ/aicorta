@@ -21,6 +21,9 @@ test("formulário aceita dados válidos e normaliza e-mail e telefone", async ()
   assert.match(mail.text, /32999999999/);
   assert.match(mail.text, /João Almeida/);
   assert.match(mail.subject, /Quero usar o AICorta/);
+  assert.match(mail.html, /Responder por e-mail/);
+  assert.match(mail.html, /Abrir WhatsApp/);
+  assert.match(mail.html, /INFORMAÇÕES DO CONTATO/);
 });
 
 test("formulário rejeita e-mail, telefone e conteúdo inválidos", async () => {
@@ -39,7 +42,7 @@ test("formulário limita o tamanho de descrição e nome", async () => {
 });
 
 test("honeypot não dispara e-mail para preenchimentos automatizados", async () => {
-  const result = await new ContactService().send(Object.assign(new PublicContactDto(), {
+  const result = await new ContactService({} as never).send(Object.assign(new PublicContactDto(), {
     ...valid, website: "https://spam.example",
   }));
   assert.equal(result.message, "Mensagem recebida.");
@@ -59,4 +62,25 @@ test("formulário não confirma envio se SMTP ou destinatário não estão confi
     if (originalHost !== undefined) process.env.SMTP_HOST = originalHost;
     if (originalTo !== undefined) process.env.CONTACT_TO_EMAIL = originalTo;
   }
+});
+
+test("HTML incorpora logo do SYSTEM em CID, sem depender de link externo", () => {
+  const mail = composeContactMessage(Object.assign(new PublicContactDto(), valid),{
+    name:"AICorta",gold:"#F2C225",
+    logo:new Uint8Array([137,80,78,71]), logoMime:"image/png",
+  });
+  assert.match(mail.html,/cid:aicorta-contact-logo/);
+  assert.match(mail.html,/#F2C225/);
+  assert.equal(mail.attachments?.[0].cid,"aicorta-contact-logo");
+  assert.equal(mail.attachments?.[0].contentType,"image/png");
+});
+
+test("mensagem do usuário é escapada, sem HTML arbitrário no e-mail", () => {
+  const mail = composeContactMessage(Object.assign(new PublicContactDto(),{
+    ...valid,
+    description:"Pedido de contato <script>alert('x')</script>\nAguardo retorno.",
+  }));
+  assert.doesNotMatch(mail.html, /<script>/);
+  assert.match(mail.html, /&lt;script&gt;/);
+  assert.match(mail.html, /<br \/>/);
 });
