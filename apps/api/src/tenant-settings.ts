@@ -72,8 +72,8 @@ export class TenantSettingsService {
     if (hasLatitude !== hasLongitude || (hasLatitude && ((dto.latitude === null) !== (dto.longitude === null)))) {
       throw new BadRequestException("Informe latitude e longitude juntas ou limpe ambas.");
     }
-    const addressChanged = ["city", "state", "neighborhood", "street", "streetNumber"]
-      .some(key => Object.prototype.hasOwnProperty.call(dto, key));
+    const addressChanged = [dto.city, dto.state, dto.neighborhood, dto.street, dto.streetNumber]
+      .some(value => value !== undefined);
     try {
       await this.db.tenant.update({ where: { id: tenantId },
         data: { ...(dto.bookingAdvanceDays !== undefined && { bookingAdvanceDays: dto.bookingAdvanceDays }),
