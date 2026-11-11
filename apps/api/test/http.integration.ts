@@ -222,6 +222,13 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       { bookingAdvanceDays: 1000 }, ownerCookie)).status, 400);
     assert.equal((await request("PATCH", `/api/tenants/${tenantA}/settings`,
       { bookingAdvanceDays: 12 }, secondOwnerCookie)).status, 403);
+    const directory = await request("GET", "/api/public/barbershops?page=1");
+    assert.equal(directory.status, 200, JSON.stringify(directory.json));
+    assert.ok(Array.isArray((directory.json as { items: unknown[] }).items));
+    assert.ok((directory.json as { totalPages: number }).totalPages >= 1);
+    assert.equal((await request("GET", "/api/public/barbershops?page=-1")).status, 400);
+    assert.equal((await request("GET", "/api/public/quick-booking?service=corte&date=invalid&time=14:00")).status, 400);
+    assert.equal((await request("GET", "/api/public/quick-booking?service=corte&date=2026-11-11&time=25:00")).status, 400);
     const discovery = await request("GET", "/api/public/tenants");
     assert.equal(discovery.status, 200);
     const found = (discovery.json as unknown as Array<{id:string;street:string;latitude:number;longitude:number}>)
