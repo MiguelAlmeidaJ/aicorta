@@ -69,9 +69,11 @@ export function ServiceImageCrop({ onChange }: {
     objectUrlRef.current = url;
     const image = new Image();
     image.onload = () => {
-      if (image.naturalWidth < OUTPUT_SIZE || image.naturalHeight < OUTPUT_SIZE) {
+      // Aceita qualquer dimensão original válida: o canvas recorta e
+      // redimensiona a saída para 1080 × 1080, inclusive ampliando fotos menores.
+      if (!image.naturalWidth || !image.naturalHeight) {
         URL.revokeObjectURL(url); objectUrlRef.current = null;
-        setError("Use uma imagem com pelo menos 1080 × 1080 pixels."); return;
+        setError("A imagem selecionada não possui dimensões válidas."); return;
       }
       imageRef.current = image; setFileName(file.name); setPreserveAlpha(file.type === "image/png" || file.type === "image/webp");
       setZoom(1); setOffsetX(0); setOffsetY(0);
@@ -91,7 +93,7 @@ export function ServiceImageCrop({ onChange }: {
     {!sourceVersion ? <label className="flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfd3cb] bg-[#fafbf8] p-6 text-center transition hover:border-[#8b9187]">
       <ImagePlus size={24} className="text-[#777d73]"/>
       <span className="mt-3 text-sm font-semibold">Selecionar foto</span>
-      <span className="mt-2 max-w-sm text-xs leading-5 text-[#8a9086]">JPG, PNG ou WEBP com pelo menos 1080 × 1080. O resultado será recortado e comprimido.</span>
+      <span className="mt-2 max-w-sm text-xs leading-5 text-[#8a9086]">JPG, PNG ou WEBP de qualquer proporção. Ajuste o recorte; a foto final terá 1080 × 1080 pixels.</span>
       <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={selectFile}/>
     </label> : <div className="grid gap-5 lg:grid-cols-[minmax(260px,360px)_1fr]">
       <canvas ref={previewRef} className="aspect-square w-full rounded-2xl bg-white object-cover shadow-inner"/>
