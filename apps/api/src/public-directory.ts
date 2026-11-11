@@ -113,7 +113,7 @@ export class PublicDirectoryService {
 
     const candidates = [...grouped.values()].slice(0, 24);
     const found: Array<{
-      id: string; name: string; slug: string; city: string | null; state: string | null;
+      id: string; name: string; slug: string; timezone: string; slotDate: string; city: string | null; state: string | null;
       neighborhood: string | null; coverUrl: string | null; hasCustomCover: boolean;
       serviceId: string; serviceName: string; durationMinutes: number; priceCents: number;
       membershipId: string; startsAt: string; exact: boolean; offsetMinutes: number; dayOffset: number;
@@ -156,7 +156,7 @@ export class PublicDirectoryService {
         if (!winner) return null;
         const actual = localParts(new Date(winner.startsAt), tenant.timezone);
         return {
-          id: tenant.id, name: tenant.name, slug: tenant.slug,
+          id: tenant.id, name: tenant.name, slug: tenant.slug, timezone: tenant.timezone, slotDate: actual.date,
           city: tenant.city, state: tenant.state, neighborhood: tenant.neighborhood,
           coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : fallbackCover,
           hasCustomCover: !!tenant.coverMime,
