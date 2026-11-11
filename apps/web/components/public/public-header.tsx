@@ -24,7 +24,7 @@ export function PublicHeader({ active = "inicio" }: { active?: "inicio" | "mapa"
       if (!live) return;
       setAccess({
         client: "/meus-agendamentos",
-        barber: session.globalRole === "SYSTEM" ? "/system"
+        barber: ["SYSTEM", "MANAGER"].includes(session.globalRole) ? "/system"
           : membership ? `/painel/barbearias/${membership.tenantId}` : "/admin/login",
       });
     }).catch(() => null);
