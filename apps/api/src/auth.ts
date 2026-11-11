@@ -280,6 +280,21 @@ export class JwtAuthGuard implements CanActivate {
 }
 
 @Injectable()
+export class PlatformStaffGuard implements CanActivate {
+  constructor(private readonly db: PrismaService) {}
+  async canActivate(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<AuthRequest>();
+    const user = await this.db.user.findUnique({
+      where: { id: req.user.id }, select: { globalRole: true, isActive: true },
+    });
+    if (!user?.isActive || !["SYSTEM", "MANAGER"].includes(user.globalRole)) {
+      throw new ForbiddenException("Acesso restrito à administração da plataforma");
+    }
+    return true;
+  }
+}
+
+@Injectable()
 export class SystemGuard implements CanActivate {
   constructor(private readonly db: PrismaService) {}
   async canActivate(context: ExecutionContext) {
