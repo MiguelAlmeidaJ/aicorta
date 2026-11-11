@@ -32,6 +32,7 @@ export default function PublicBarbershopPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekly, setWeekly] = useState<AvailableWeek | null>(null);
   const submittingRef = useRef(false);
+  const preselectedSlotRef = useRef<{ date: string; startsAt: string } | null>(null);
   const professional = catalog?.professionals.find(item => item.id === professionalId);
   const availableServices = useMemo(() => catalog?.services.filter(item => professional?.serviceIds.includes(item.id)) ?? [], [catalog, professional]);
   const selectedServices = useMemo(() => catalog?.services.filter(item => serviceIds.includes(item.id)) ?? [], [catalog, serviceIds]);
@@ -53,7 +54,27 @@ export default function PublicBarbershopPage() {
 
   useEffect(() => {
     let active = true; if (!slug) return;
-    apiJson<Catalog>(`/b/${encodeURIComponent(slug)}`).then(data => { if (active) { setCatalog(data); setDay(""); } })
+    apiJson<Catalog>(`/b/${encodeURIComponent(slug)}`).then(data => {
+      if (!active) return;
+      setCatalog(data); setDay("");
+      const params = new URLSearchParams(window.location.search);
+      const memberId = params.get("professional") ?? "";
+      const serviceId = params.get("service") ?? "";
+      const desiredDate = params.get("date") ?? "";
+      const desiredTime = params.get("time") ?? "";
+      const professional = data.professionals.find(person =>
+        person.id === memberId && person.serviceIds.includes(serviceId));
+      const dateValid = /^\\d{4}-\\d{2}-\\d{2}$/.test(desiredDate) &&
+        desiredDate >= localToday(data.tenant.timezone) &&
+        desiredDate <= plusDays(localToday(data.tenant.timezone), data.tenant.bookingAdvanceDays ?? 21);
+      if (professional && dateValid && !Number.isNaN(new Date(desiredTime).getTime())) {
+        setProfessionalId(memberId); setServiceIds([serviceId]);
+        const difference = Math.round((new Date(desiredDate + "T12:00:00Z").getTime() -
+          new Date(localToday(data.tenant.timezone) + "T12:00:00Z").getTime()) / 86400000);
+        setWeekOffset(Math.floor(difference / 7));
+        preselectedSlotRef.current = { date: desiredDate, startsAt: desiredTime };
+      }
+    })
       .catch(() => { if (active) setError("Este estabelecimento não está disponível no momento."); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [slug]);
@@ -73,11 +94,17 @@ export default function PublicBarbershopPage() {
       .then(result => {
         if (!active) return;
         setWeekly(result);
-        const available = result.days.find(item => item.slots.length > 0 &&
+        const hint = preselectedSlotRef.current;
+        preselectedSlotRef.current = null;
+        const selected = hint && result.days.find(item =>
+          item.date === hint.date && item.slots.includes(hint.startsAt));
+        const available = selected ?? result.days.find(item => item.slots.length > 0 &&
           item.date <= lastBookingDay);
         if (available) {
           setDay(available.date);
           setSlots(available.slots);
+          if (hint && selected) setSelectedSlot(hint.startsAt);
+          else if (hint) setError("O horário sugerido não está mais disponível. Escolha uma das opções atuais.");
         }
       })
       .catch(() => {
@@ -109,7 +136,7 @@ export default function PublicBarbershopPage() {
     let navigating = false;
     try {
       const response = await apiFetch(`/b/${encodeURIComponent(slug)}/bookings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceIds, employeeMembershipId: professionalId, startsAt: selectedSlot }) });
-      if (response.status === 401) { navigating = true; window.location.assign("/login?next=" + encodeURIComponent("/b/" + slug)); return; }
+      if (response.status === 401) { navigating = true; window.location.assign("/login?next=" + encodeURIComponent(window.location.pathname + window.location.search)); return; }
       if (response.status === 409) { setError("Esse horário acabou de ser reservado. Escolha outro."); setSelectedSlot(""); return; }
       if (!response.ok) { const body = await response.json().catch(() => ({})) as { message?: string | string[] }; throw new Error(Array.isArray(body.message) ? body.message.join("; ") : body.message ?? "Não foi possível reservar."); }
       // Navegação completa evita inconsistências de reconciliação do DOM após uma ação crítica.
