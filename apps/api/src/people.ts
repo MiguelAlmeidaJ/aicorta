@@ -107,13 +107,13 @@ export class PeopleService {
     });
     if (!user) return { exists: false, email };
     const membership = user.memberships[0] ?? null;
-    const unavailable = !user.isActive || user.globalRole === "SYSTEM" || membership?.role === "ADMIN" ||
+    const unavailable = !user.isActive || user.globalRole !== "USER" || membership?.role === "ADMIN" ||
       (membership?.role === "EMPLOYEE" && membership.isActive);
     return {
       exists: true, email, canLink: !unavailable,
       user: { name: user.name, username: user.username, email: user.email },
       membership,
-      reason: !user.isActive || user.globalRole === "SYSTEM" ? "Esta conta não pode ser vinculada" :
+      reason: !user.isActive || user.globalRole !== "USER" ? "Esta conta não pode ser vinculada" :
         membership?.role === "ADMIN" ? "Esta pessoa já é administradora" :
         membership?.role === "EMPLOYEE" && membership.isActive ? "Esta pessoa já está na equipe" : null,
     };
@@ -125,7 +125,7 @@ export class PeopleService {
       where: { email }, select: { id: true, name: true, isActive: true, globalRole: true },
     });
     if (existing) {
-      if (!existing.isActive || existing.globalRole === "SYSTEM") {
+      if (!existing.isActive || existing.globalRole !== "USER") {
         throw new BadRequestException("Esta conta não pode ser vinculada à equipe");
       }
       return this.db.$transaction(async tx => {
@@ -192,7 +192,7 @@ export class PeopleService {
   async invite(tenantId: string, issuedById: string, dto: InvitePersonDto) {
     const email = dto.email.trim().toLowerCase();
     const target = await this.db.user.findUnique({ where: { email }, select: { id: true, isActive: true, globalRole: true } });
-    if (target && (!target.isActive || target.globalRole === "SYSTEM")) {
+    if (target && (!target.isActive || target.globalRole !== "USER")) {
       throw new BadRequestException("Esta conta não pode receber convites");
     }
     if (target) {
@@ -227,7 +227,7 @@ export class PeopleService {
         throw new GoneException("Convite inválido ou expirado");
       }
       const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true, isActive: true, globalRole: true } });
-      if (!user?.isActive || user.globalRole === "SYSTEM" || user.email.toLowerCase() !== invitation.email) {
+      if (!user?.isActive || user.globalRole !== "USER" || user.email.toLowerCase() !== invitation.email) {
         throw new ForbiddenException("Este convite pertence a outro usuário");
       }
       // Consumo condicional serializa tentativas simultâneas do mesmo convite.
