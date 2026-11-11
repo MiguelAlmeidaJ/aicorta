@@ -13,7 +13,7 @@ import { money } from "../../../components/dashboard/ui";
 type Service = { id: string; name: string; description: string | null; durationMinutes: number; priceCents: number; imageUrl: string | null };
 type Professional = { id: string; name: string; serviceIds: string[]; avatarUrl: string | null };
 type Catalog = { tenant: { id: string; name: string; slug: string; timezone: string; bookingAdvanceDays: number; city: string | null; state: string | null; neighborhood: string | null; street: string | null; streetNumber: string | null; complement: string | null; postalCode: string | null; latitude: number | null; longitude: number | null; coverUrl: string | null }; services: Service[]; professionals: Professional[] };
-type Slots = { slots: string[] };
+type AvailableWeek = { days: { date: string; slots: string[] }[] };
 
 function localToday(zone: string) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
@@ -30,6 +30,7 @@ export default function PublicBarbershopPage() {
   const [day, setDay] = useState(""); const [slots, setSlots] = useState<string[]>([]); const [selectedSlot, setSelectedSlot] = useState("");
   const [loadingSlots, setLoadingSlots] = useState(false); const [submitting, setSubmitting] = useState(false); const [error, setError] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [weekly, setWeekly] = useState<AvailableWeek | null>(null);
   const submittingRef = useRef(false);
   const professional = catalog?.professionals.find(item => item.id === professionalId);
   const availableServices = useMemo(() => catalog?.services.filter(item => professional?.serviceIds.includes(item.id)) ?? [], [catalog, professional]);
@@ -38,10 +39,10 @@ export default function PublicBarbershopPage() {
   const today = catalog ? localToday(catalog.tenant.timezone) : "";
   const advanceDays = Math.max(1, Math.min(90, catalog?.tenant.bookingAdvanceDays ?? 21));
   const lastBookingDay = today ? plusDays(today, advanceDays) : "";
-  const days = useMemo(() => today ? Array.from({ length: 7 }, (_, index) =>
-    plusDays(today, weekOffset * 7 + index)).filter(date => date <= lastBookingDay) : [],
-    [today, weekOffset, lastBookingDay]);
-  const canNextWeek = days.length > 0 && plusDays(today, (weekOffset + 1) * 7) <= lastBookingDay;
+  const days = weekly?.days.filter(item => item.slots.length > 0 &&
+    item.date <= lastBookingDay) ?? [];
+  const canNextWeek = !!today && plusDays(today, (weekOffset + 1) * 7) <= lastBookingDay;
+  const selectedServiceKey = serviceIds.join(",");
   const location = catalog ? [[catalog.tenant.street, catalog.tenant.streetNumber].filter(Boolean).join(", "),
     catalog.tenant.neighborhood, [catalog.tenant.city, catalog.tenant.state].filter(Boolean).join(" / ")]
     .filter(Boolean).join(" · ") : "";
@@ -52,28 +53,55 @@ export default function PublicBarbershopPage() {
 
   useEffect(() => {
     let active = true; if (!slug) return;
-    apiJson<Catalog>(`/b/${encodeURIComponent(slug)}`).then(data => { if (active) { setCatalog(data); setDay(localToday(data.tenant.timezone)); } })
+    apiJson<Catalog>(`/b/${encodeURIComponent(slug)}`).then(data => { if (active) { setCatalog(data); setDay(""); } })
       .catch(() => { if (active) setError("Este estabelecimento não está disponível no momento."); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [slug]);
   useEffect(() => {
-    let active = true; if (!slug || !professionalId || !serviceIds.length || !day) return;
-    const query = new URLSearchParams({ date: day, serviceIds: serviceIds.join(","), membershipId: professionalId });
-    apiJson<Slots>(`/b/${encodeURIComponent(slug)}/slots?${query}`).then(result => { if (active) setSlots(result.slots); })
-      .catch(() => { if (active) { setSlots([]); setError("Não foi possível consultar os horários."); } }).finally(() => { if (active) setLoadingSlots(false); });
+    let active = true;
+    setWeekly(null); setDay(""); setSlots([]); setSelectedSlot("");
+    if (!slug || !professionalId || !selectedServiceKey || !today ||
+        plusDays(today, weekOffset * 7) > lastBookingDay) {
+      setLoadingSlots(false); return;
+    }
+    setLoadingSlots(true);
+    const query = new URLSearchParams({
+      from: plusDays(today, weekOffset * 7),
+      serviceIds: selectedServiceKey, membershipId: professionalId,
+    });
+    apiJson<AvailableWeek>(`/b/${encodeURIComponent(slug)}/available-days?${query}`)
+      .then(result => {
+        if (!active) return;
+        setWeekly(result);
+        const available = result.days.find(item => item.slots.length > 0 &&
+          item.date <= lastBookingDay);
+        if (available) {
+          setDay(available.date);
+          setSlots(available.slots);
+        }
+      })
+      .catch(() => {
+        if (active) setError("Não foi possível consultar os dias disponíveis. Tente novamente.");
+      })
+      .finally(() => { if (active) setLoadingSlots(false); });
     return () => { active = false; };
-  }, [day, professionalId, serviceIds, slug]);
+  }, [slug, professionalId, selectedServiceKey, weekOffset, today, lastBookingDay]);
 
-  function chooseProfessional(id: string) { setProfessionalId(id); setServiceIds([]); setSlots([]); setSelectedSlot(""); }
-  function toggleService(id: string) { setServiceIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]); setSlots([]); setSelectedSlot(""); setLoadingSlots(true); }
+  function chooseProfessional(id: string) {
+    setProfessionalId(id); setServiceIds([]); setSlots([]); setSelectedSlot(""); setWeekOffset(0);
+  }
+  function toggleService(id: string) {
+    setServiceIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
+    setSlots([]); setSelectedSlot(""); setWeekOffset(0);
+  }
   function chooseDay(value: string) {
-    setDay(value); setSlots([]); setSelectedSlot("");
-    if (professionalId && serviceIds.length) setLoadingSlots(true);
+    const found = weekly?.days.find(item => item.date === value && item.slots.length > 0);
+    if (!found) return;
+    setDay(value); setSlots(found.slots); setSelectedSlot("");
   }
   function moveWeek(next: number) {
     if (next < 0 || !today || plusDays(today, next * 7) > lastBookingDay) return;
     setWeekOffset(next);
-    chooseDay(plusDays(today, next * 7));
   }
   async function book() {
     if (!selectedSlot || !professionalId || !serviceIds.length || submittingRef.current) return;
@@ -102,19 +130,19 @@ export default function PublicBarbershopPage() {
       {catalog ? <div className="mt-7 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]"><div className="space-y-6">
         <section className={stepClass}><Step number="1" title="Escolha o profissional" description="Quem vai cuidar do seu visual?"/><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{catalog.professionals.map(person => <button key={person.id} type="button" aria-pressed={professionalId === person.id} onClick={() => chooseProfessional(person.id)} className={`flex items-center gap-3 rounded-2xl border p-4 text-left ${professionalId === person.id ? "border-[#171916] bg-[#f7f7f2] ring-1 ring-[#171916]" : "border-[#e5e7e0] hover:border-[#9b9f97]"}`}><ProfessionalAvatar name={person.name} avatarUrl={person.avatarUrl}/><span className="flex-1 text-sm font-bold">{person.name}</span>{professionalId === person.id ? <Check size={17}/> : null}</button>)}</div></section>
         <section className={`${stepClass} ${professionalId ? "" : "opacity-60"}`}><Step number="2" title="Selecione um ou mais serviços" description="Monte o atendimento do seu jeito."/>{!professionalId ? <Empty text="Escolha primeiro um profissional."/> : <div className="mt-6 grid gap-3 sm:grid-cols-2">{availableServices.map(item => { const selected = serviceIds.includes(item.id); return <button key={item.id} type="button" aria-pressed={selected} onClick={() => toggleService(item.id)} className={`flex gap-4 rounded-2xl border p-3 text-left ${selected ? "border-[#171916] bg-[#f8f8f3] ring-1 ring-[#171916]" : "border-[#e5e7e0] hover:border-[#999e94]"}`}><span className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#eff0ec]">{item.imageUrl ? <img src={`${API_URL}${item.imageUrl}`} alt="" className="h-full w-full object-contain"/> : <Scissors/>}</span><span className="min-w-0 flex-1 py-1"><span className="flex items-start justify-between gap-2"><strong className="text-sm">{item.name}</strong>{selected ? <span className="rounded-full bg-[#171916] p-1 text-white"><Check size={12}/></span> : null}</span><span className="mt-2 block text-xs text-[#858a81]">{item.description || "Atendimento profissional"}</span><span className="mt-4 flex items-center justify-between text-xs"><b>{money(item.priceCents)}</b><span className="flex items-center gap-1 text-[#858a81]"><Clock3 size={12}/>{item.durationMinutes} min</span></span></span></button>; })}</div>}</section>
-        <section className={`${stepClass} ${serviceIds.length ? "" : "opacity-60"}`}><Step number="3" title="Escolha a data e o horário" description={duration ? `${duration} minutos reservados para seu atendimento.` : "Veja os horários disponíveis."}/>{!serviceIds.length ? <Empty text="Selecione pelo menos um serviço."/> : <><div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#eaede6] bg-[#fafbf8] px-3 py-3">
+        <section className={`${stepClass} ${serviceIds.length ? "" : "opacity-60"}`}><Step number="3" title="Escolha a data e o horário" description={duration ? `${duration} minutos de atendimento. Agende com pelo menos 1 hora de antecedência.` : "Veja apenas os dias com horários disponíveis."}/>{!serviceIds.length ? <Empty text="Selecione pelo menos um serviço."/> : <><div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#eaede6] bg-[#fafbf8] px-3 py-3">
           <div><p className="text-[12px] font-bold text-[#333a31]">Datas disponíveis</p>
             <p className="mt-1 text-[11px] text-[#8a9286]">Reservas até {labelDay(lastBookingDay)} · {advanceDays} dias à frente</p></div>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={weekOffset === 0} aria-label="Semana anterior" onClick={() => moveWeek(weekOffset - 1)}
+            <button type="button" disabled={loadingSlots || weekOffset === 0} aria-label="Semana anterior" onClick={() => moveWeek(weekOffset - 1)}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e0e4dc] bg-white disabled:opacity-35"><ArrowLeft size={16}/></button>
             <span className="min-w-[66px] text-center text-[11px] font-semibold text-[#667061]">Semana {weekOffset + 1}</span>
-            <button type="button" disabled={!canNextWeek} aria-label="Próxima semana" onClick={() => moveWeek(weekOffset + 1)}
+            <button type="button" disabled={loadingSlots || !canNextWeek} aria-label="Próxima semana" onClick={() => moveWeek(weekOffset + 1)}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#e0e4dc] bg-white disabled:opacity-35"><ArrowRight size={16}/></button>
           </div>
         </div>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">{days.map(value => <button key={value} type="button" aria-pressed={day === value} onClick={() => chooseDay(value)} className={`min-w-[104px] rounded-xl border px-3 py-3 text-xs font-semibold capitalize ${day === value ? "border-[#171916] bg-[#171916] text-white" : "border-[#e4e6df]"}`}>{labelDay(value)}</button>)}</div>{loadingSlots ? <div className="mt-5 h-16 animate-pulse rounded-xl bg-[#eef0ea]"/> : slots.length ? <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-5">{slots.map(slot => <button key={slot} type="button" aria-pressed={selectedSlot === slot} onClick={() => setSelectedSlot(slot)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${selectedSlot === slot ? "border-[#171916] bg-[#171916] text-white" : "border-[#e4e6df] hover:border-[#92978e]"}`}>{time(slot)}</button>)}</div> : <div className="mt-5 rounded-xl border border-[#e8ebe4] bg-[#f8faf6] p-5">
-          <p className="text-[12px] font-medium text-[#717d6c]">Não há horários disponíveis para esta data.</p>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">{days.map(item => <button key={item.date} type="button" aria-pressed={day === item.date} onClick={() => chooseDay(item.date)} className={`min-w-[104px] rounded-xl border px-3 py-3 text-xs font-semibold capitalize ${day === item.date ? "border-[#171916] bg-[#171916] text-white" : "border-[#e4e6df]"}`}>{labelDay(item.date)}</button>)}</div>{loadingSlots ? <div className="mt-5 h-16 animate-pulse rounded-xl bg-[#eef0ea]"/> : slots.length ? <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-5">{slots.map(slot => <button key={slot} type="button" aria-pressed={selectedSlot === slot} onClick={() => setSelectedSlot(slot)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${selectedSlot === slot ? "border-[#171916] bg-[#171916] text-white" : "border-[#e4e6df] hover:border-[#92978e]"}`}>{time(slot)}</button>)}</div> : <div className="mt-5 rounded-xl border border-[#e8ebe4] bg-[#f8faf6] p-5">
+          <p className="text-[12px] font-medium text-[#717d6c]">Esta semana não possui dias disponíveis para os serviços selecionados.</p>
           {canNextWeek && <button type="button" onClick={() => moveWeek(weekOffset + 1)}
             className="mt-3 inline-flex items-center gap-2 text-[12px] font-bold text-[#2d3d2b] hover:underline">Ver próxima semana <ArrowRight size={15}/></button>}
         </div>}</>}</section>

@@ -5,7 +5,7 @@ import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { AgendaService } from "./agenda";
-import { inside, insideBookingHorizon, localParts, weekday } from "./scheduling-time";
+import { inside, insideBookingHorizon, meetsBookingNotice, localParts, weekday } from "./scheduling-time";
 
 function translateDbConflict(error: unknown): never {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
@@ -103,7 +103,7 @@ export class BookingService {
     const durationMinutes = orderedServices.reduce((total, item) => total + item.durationMinutes, 0);
     const priceCents = orderedServices.reduce((total, item) => total + item.priceCents, 0);
     const startsAt = new Date(dto.startsAt);
-    if (Number.isNaN(startsAt.getTime()) || startsAt <= new Date()) throw new BadRequestException("Data deve estar no futuro");
+    if (!meetsBookingNotice(startsAt)) throw new BadRequestException("Agende com pelo menos 1 hora de antecedência.");
     const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(startsAt, tenant.timezone);
@@ -114,6 +114,7 @@ export class BookingService {
     if (local.date !== endLocal.date || endLocal.minute !== local.minute + durationMinutes ||
         local.minute % 15 !== 0) throw new BadRequestException("Horário fora da grade de 15 minutos");
     try { return await this.db.$transaction(async tx => {
+      if (!meetsBookingNotice(startsAt)) throw new BadRequestException("Agende com pelo menos 1 hora de antecedência.");
       // PostgreSQL transaction-scoped lock is shared between all API replicas using the same DB.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${tenantId + ":" + employee.id}, 0))::text`;
       if (selfService) {
@@ -209,7 +210,7 @@ export class BookingService {
       throw new ConflictException("Reserva não permite remarcação");
     }
     const start = new Date(time);
-    if (Number.isNaN(start.getTime()) || start <= new Date()) throw new BadRequestException("Novo horário inválido");
+    if (!meetsBookingNotice(start)) throw new BadRequestException("Escolha um horário com pelo menos 1 hora de antecedência.");
     const tenant = await this.agenda.tenant(tenantId);
     const local = localParts(start, tenant.timezone);
     if (!insideBookingHorizon(local.date, tenant.timezone, tenant.bookingAdvanceDays ?? 21)) {

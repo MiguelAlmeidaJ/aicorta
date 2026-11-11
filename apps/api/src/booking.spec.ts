@@ -62,3 +62,19 @@ test("remarcação rejeita datas além do prazo antes de consultar horários", a
   await assert.rejects(() => booking.reschedule("tenant", "appointment", "client",
     "2099-03-10T12:00:00.000Z"), /A remarcação deve respeitar o prazo/);
 });
+
+test("API recusa criar reserva com menos de 1 hora de antecedência", async () => {
+  const db = {
+    service: { findMany: async () => [{
+      id: "service", priceCents: 2500, durationMinutes: 30,
+    }] },
+    membership: { findFirst: async () => ({ id: "professional" }) },
+    user: { findFirst: async () => ({ id: "client" }) },
+  };
+  const booking = new BookingService(db as never, {} as never);
+  const startsAt = new Date(Date.now() + 45 * 60_000).toISOString();
+  await assert.rejects(() => booking.create("tenant", "client", {
+    serviceId: "service", serviceIds: ["service"], employeeMembershipId: "professional",
+    clientId: "client", startsAt,
+  }, true), /1 hora de antecedência/);
+});

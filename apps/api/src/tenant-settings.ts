@@ -7,6 +7,7 @@ import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { imageDimensions } from "./services";
 import { Throttle } from "@nestjs/throttler";
 import { locateBrazilianAddress, reverseGeocode } from "./reverse-geocode";
+import { missingTenantAddressFields } from "./tenant-address";
 
 const MAX_COVER_BYTES = 500 * 1024;
 export function parseTenantCover(dataUrl: string) {
@@ -52,7 +53,7 @@ export class LocateTenantDto {
 }
 
 const settingsSelect = {
-  id: true, name: true, slug: true, timezone: true, status: true, billingDueDay: true,
+  id: true, ownerId: true, name: true, slug: true, timezone: true, status: true, billingDueDay: true,
   bookingAdvanceDays: true,
   city: true, state: true, neighborhood: true, postalCode: true, street: true,
   streetNumber: true, complement: true, latitude: true, longitude: true, coverMime: true, updatedAt: true,
@@ -63,7 +64,9 @@ export class TenantSettingsService {
   constructor(private readonly db: PrismaService) {}
   async details(tenantId: string) {
     const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: settingsSelect });
-    return { ...tenant, coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : null };
+    const missingAddressFields = missingTenantAddressFields(tenant);
+    return { ...tenant, addressComplete: missingAddressFields.length === 0, missingAddressFields,
+      coverUrl: tenant.coverMime ? `/b/${tenant.slug}/cover?v=${tenant.updatedAt.getTime()}` : null };
   }
   async update(tenantId: string, dto: UpdateTenantSettingsDto) {
     if (Object.keys(dto).length === 0) return this.details(tenantId);

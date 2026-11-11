@@ -59,3 +59,9 @@ export function insideBookingHorizon(date: string, timezone: string, advanceDays
   const range = bookingDateRange(timezone, advanceDays, now);
   return date >= range.today && date <= range.lastDate;
 }
+
+/** Agendamentos novos requerem pelo menos uma hora entre a solicitação e o início. */
+export const MIN_BOOKING_NOTICE_MS = 60 * 60 * 1000;
+export function meetsBookingNotice(start: Date, now = new Date()) {
+  return Number.isFinite(start.getTime()) && start.getTime() - now.getTime() >= MIN_BOOKING_NOTICE_MS;
+}

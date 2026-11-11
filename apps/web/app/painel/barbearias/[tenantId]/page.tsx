@@ -11,7 +11,7 @@ type Booking = { id: string; startsAt: string; status: string; priceCents: numbe
 type Dashboard = { tenant: { name: string; slug: string; status: string; billingDueDay: number; timezone: string };
   appointmentsToday: number; pending: number; team: number; clients: number; services: number;
   completedServiceValueCents: number; receivedPaymentsCents: number; upcoming: Booking[]; actorRole: string;
-  setup: { services: boolean; shopHours: boolean; professionalHours: boolean; assignedServices: boolean } };
+  setup: { address: boolean; services: boolean; shopHours: boolean; professionalHours: boolean; assignedServices: boolean } };
 
 export default function TenantOverview() {
   const { tenantId } = useParams<{ tenantId: string }>();
@@ -26,6 +26,7 @@ export default function TenantOverview() {
   }, [tenantId]);
   const base = `/painel/barbearias/${tenantId}`;
   const checklist = data ? [
+    { label: "Completar endereço e confirmar localização", done: data.setup.address, href: base + "/configuracoes#endereco-completo" },
     { label: "Cadastrar seu primeiro serviço", done: data.setup.services, href: base + "/servicos" },
     { label: "Configurar horário da barbearia", done: data.setup.shopHours, href: base + "/agenda/configuracao" },
     { label: "Definir jornada dos profissionais", done: data.setup.professionalHours, href: base + "/agenda/configuracao" },

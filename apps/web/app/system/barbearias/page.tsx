@@ -18,6 +18,16 @@ const slugify = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036
 const sanitizeSlugInput = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+/, "").slice(0, 50);
 
+const usernamePattern = /^[a-z0-9]{3,30}$/;
+const phoneDigits = (value: string) => value.replace(/\D/g, "").slice(0, 11);
+function formatWhatsapp(value: string) {
+  const digits = phoneDigits(value);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function SystemTenants() {
   const [items, setItems] = useState<Tenant[]>([]);
   const [query, setQuery] = useState("");
@@ -30,6 +40,8 @@ export default function SystemTenants() {
   const [createError, setCreateError] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
   const [form, setForm] = useState<TenantForm>(emptyForm);
+  const usernameInvalid = form.ownerUsername.length > 0 && !usernamePattern.test(form.ownerUsername);
+  const whatsappInvalid = form.ownerWhatsapp.length > 0 && phoneDigits(form.ownerWhatsapp).length !== 11;
   const load = () => apiJson<Tenant[]>("/system/tenants").then(setItems);
   useEffect(() => { void load().catch(e => setError(e.message)); }, []);
   const shown = useMemo(() => items.filter(item =>
@@ -56,9 +68,20 @@ export default function SystemTenants() {
     setCreateOpen(false); setCreateError("");
   }
   async function createTenant(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setCreating(true); setCreateError(""); setNotice("");
+    event.preventDefault();
+    if (creating) return;
+    if (!usernamePattern.test(form.ownerUsername)) {
+      setCreateError("O nome de usuário deve ter entre 3 e 30 caracteres, apenas letras minúsculas e números.");
+      return;
+    }
+    if (phoneDigits(form.ownerWhatsapp).length !== 11) {
+      setCreateError("Informe um WhatsApp válido com DDD e 9 dígitos, por exemplo (32) 99999-9999.");
+      return;
+    }
+    setCreating(true); setCreateError(""); setNotice("");
     try {
-      const created = await apiJson<Tenant>("/system/tenants", mutation("POST", form));
+      const payload = { ...form, ownerWhatsapp: phoneDigits(form.ownerWhatsapp) };
+      const created = await apiJson<Tenant>("/system/tenants", mutation("POST", payload));
       setItems(current => [created, ...current]);
       setForm(emptyForm); setSlugEdited(false); setCreateOpen(false);
       setNotice(`Barbearia “${created.name}” criada. O proprietário já pode entrar pelo acesso administrativo.`);
@@ -151,16 +174,34 @@ export default function SystemTenants() {
                 onChange={event => update("ownerName", event.target.value)} placeholder="Nome do proprietário"/>
             </label>
             <label className="block text-xs font-semibold text-[#545a51]">Usuário
-              <input required minLength={3} maxLength={30} pattern="[a-z0-9]+" autoComplete="username" className={fieldClass + " mt-2"} value={form.ownerUsername}
-                onChange={event => update("ownerUsername", event.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))} placeholder="usuarioadmin"/>
+              <input required minLength={3} maxLength={30} pattern="[a-z0-9]{3,30}"
+                title="Use de 3 a 30 caracteres: apenas letras minúsculas e números, sem espaços, acentos ou símbolos."
+                autoCapitalize="none" spellCheck={false} autoComplete="username"
+                aria-invalid={usernameInvalid} aria-describedby="owner-username-help"
+                className={fieldClass + " mt-2" + (usernameInvalid ? " border-red-400 focus:border-red-500" : "")}
+                value={form.ownerUsername}
+                onChange={event => update("ownerUsername", event.target.value.toLowerCase())}
+                placeholder="usuarioadmin"/>
+              <span id="owner-username-help" className={`mt-1.5 block text-[11px] leading-4 ${usernameInvalid ? "text-red-600" : "text-[#92988e]"}`}>
+                {usernameInvalid ? "Usuário inválido. Use somente letras de a a z e números, entre 3 e 30 caracteres." :
+                  "De 3 a 30 caracteres, somente letras minúsculas e números. Sem espaços ou acentos."}
+              </span>
             </label>
             <label className="block text-xs font-semibold text-[#545a51]">E-mail
               <input required type="email" autoComplete="email" className={fieldClass + " mt-2"} value={form.ownerEmail}
                 onChange={event => update("ownerEmail", event.target.value)} placeholder="proprietario@exemplo.com"/>
             </label>
             <label className="block text-xs font-semibold text-[#545a51]">WhatsApp
-              <input required inputMode="tel" autoComplete="tel" className={fieldClass + " mt-2"} value={form.ownerWhatsapp}
-                onChange={event => update("ownerWhatsapp", event.target.value)} placeholder="(32) 99999-9999"/>
+              <input required type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={15}
+                aria-invalid={whatsappInvalid} aria-describedby="owner-whatsapp-help"
+                className={fieldClass + " mt-2" + (whatsappInvalid ? " border-red-400 focus:border-red-500" : "")}
+                value={form.ownerWhatsapp}
+                onChange={event => update("ownerWhatsapp", formatWhatsapp(event.target.value))}
+                placeholder="(32) 99999-9999"/>
+              <span id="owner-whatsapp-help" className={`mt-1.5 block text-[11px] leading-4 ${whatsappInvalid ? "text-red-600" : "text-[#92988e]"}`}>
+                {whatsappInvalid ? "Informe 11 dígitos: DDD + celular com 9 dígitos." :
+                  "Formato (DD) 99999-9999. Somente números serão enviados."}
+              </span>
             </label>
             <label className="block text-xs font-semibold text-[#545a51] sm:col-span-2">Senha inicial
               <input required type="password" minLength={10} maxLength={128} autoComplete="new-password" className={fieldClass + " mt-2"} value={form.ownerPassword}

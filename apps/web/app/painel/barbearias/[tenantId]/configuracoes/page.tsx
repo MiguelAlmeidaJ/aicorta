@@ -31,7 +31,8 @@ function friendlySettingsError(error: unknown) {
 type Settings = { id: string; name: string; slug: string; status: string; billingDueDay: number; timezone: string;
   city: string | null; state: string | null; neighborhood: string | null;
   postalCode: string | null; street: string | null; streetNumber: string | null;
-  complement: string | null; latitude: number | null; longitude: number | null; coverUrl: string | null };
+  complement: string | null; latitude: number | null; longitude: number | null; coverUrl: string | null;
+  ownerId: string; addressComplete: boolean; missingAddressFields: string[] };
 export default function TenantSettingsPage() {
   const { tenantId } = useParams<{ tenantId: string }>();
   const [value, setValue] = useState<Settings | null>(null);
@@ -54,6 +55,23 @@ export default function TenantSettingsPage() {
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!value || !original || saving) return;
+    // O cadastro inicial só é concluído com endereço completo e pin confirmado.
+    if (!original.addressComplete) {
+      const missing = [
+        !/^[0-9]{8}$/.test((value.postalCode ?? "").replace(/\D/g, "")) && "CEP válido",
+        !value.street?.trim() && "rua",
+        !value.streetNumber?.trim() && "número",
+        !value.neighborhood?.trim() && "bairro",
+        !value.city?.trim() && "cidade",
+        !/^[A-Z]{2}$/.test(value.state?.trim().toUpperCase() ?? "") && "UF",
+        (value.latitude === null || value.longitude === null) && "localização no mapa",
+      ].filter(Boolean);
+      if (missing.length) {
+        setError(`Para finalizar o cadastro, preencha: ${missing.join(", ")}.`);
+        document.getElementById("endereco-completo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
     const slug = cleanSlug(value.slug).replace(/-+$/, "");
     const name = value.name.trim();
     if (slug !== original.slug && (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length < 3)) {
@@ -111,6 +129,10 @@ export default function TenantSettingsPage() {
       }
       setValue(saved); setOriginal(saved); setSavedSlug(saved.slug);
       setCoverDataUrl(undefined);
+      if (!original.addressComplete && saved.addressComplete) {
+        window.location.assign(`/painel/barbearias/${tenantId}`);
+        return;
+      }
       setMessage("Configurações salvas com sucesso.");
     } catch (reason) {
       setError(friendlySettingsError(reason));
@@ -256,6 +278,23 @@ export default function TenantSettingsPage() {
   return <>
     <PageHeader kicker="Gestão / Preferências" title="Configurações"
       description="Personalize a identidade e o endereço público da sua barbearia."/>
+    {value && !original?.addressComplete && <section aria-labelledby="onboarding-title"
+      className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#e5dbc0] bg-[#fcfaf3] px-5 py-5 sm:px-7">
+      <p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#9b8448]">Primeiro acesso · Cadastro obrigatório</p>
+      <h2 id="onboarding-title" className="text-lg font-bold tracking-tight text-[#242820]">
+        Complete os dados do seu estabelecimento
+      </h2>
+      <p className="max-w-2xl text-[13px] leading-6 text-[#767d6e]">
+        Informe CEP, rua, número, bairro, cidade e UF. Depois, confirme o ponto no mapa e
+        salve as alterações para liberar seu painel e apresentar a localização correta aos clientes.
+        O complemento é opcional.
+      </p>
+      <p className="text-[12px] font-semibold text-[#736544]">
+        {original?.missingAddressFields?.length
+          ? `Ainda falta no cadastro: ${original.missingAddressFields.join(", ")}.`
+          : "Revise o endereço e confirme a localização."}
+      </p>
+    </section>}
     {error && <p role="alert" className="mb-5 rounded-xl bg-[#faeeee] px-4 py-3 text-sm text-[#a84b46]">{error}</p>}
     {message && <p role="status" className="mb-5 rounded-xl bg-[#edf3eb] px-4 py-3 text-sm text-[#46634a]">{message}</p>}
     <div className="grid gap-6 xl:grid-cols-[1.3fr_.7fr]">
@@ -276,20 +315,20 @@ export default function TenantSettingsPage() {
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-semibold text-[#52574f]">Cidade
-              <input maxLength={100} className={fieldClass + " mt-2"} value={value.city ?? ""} onChange={e => changeAddress({ city: e.target.value })}/></label>
+              <input required={!original?.addressComplete} maxLength={100} className={fieldClass + " mt-2"} value={value.city ?? ""} onChange={e => changeAddress({ city: e.target.value })}/></label>
             <label className="block text-xs font-semibold text-[#52574f]">Estado (UF)
-              <input maxLength={2} pattern="[A-Za-z]{2}" placeholder="Ex.: MG" className={fieldClass + " mt-2 uppercase"} value={value.state ?? ""} onChange={e => changeAddress({ state: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })}/></label>
+              <input required={!original?.addressComplete} maxLength={2} pattern="[A-Za-z]{2}" placeholder="Ex.: MG" className={fieldClass + " mt-2 uppercase"} value={value.state ?? ""} onChange={e => changeAddress({ state: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })}/></label>
           </div>
           <label className="block text-xs font-semibold text-[#52574f]">Bairro
-            <input maxLength={100} className={fieldClass + " mt-2"} value={value.neighborhood ?? ""} onChange={e => changeAddress({ neighborhood: e.target.value })}/></label>
-          <section className="space-y-4 border-t border-[#eceee8] pt-6">
+            <input required={!original?.addressComplete} maxLength={100} className={fieldClass + " mt-2"} value={value.neighborhood ?? ""} onChange={e => changeAddress({ neighborhood: e.target.value })}/></label>
+          <section id="endereco-completo" className="scroll-mt-24 space-y-4 border-t border-[#eceee8] pt-6">
             <div className="flex items-start gap-3"><MapPin size={18} className="mt-0.5 text-[#667362]"/>
               <div><h2 className="text-sm font-bold">Endereço completo e localização</h2>
                 <p className="mt-1 text-xs leading-5 text-[#848d80]">Cadastre o endereço e confirme o pin para aparecer no mapa público.</p></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <label className="text-xs font-semibold text-[#52574f]">CEP
-                <input inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000"
+                <input required={!original?.addressComplete} inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000"
                   className={fieldClass+" mt-2"} value={formatPostalCode(value.postalCode ?? "")}
                   onChange={e=>changeAddress({postalCode:e.target.value.replace(/\D/g,"").slice(0,8)})}/>
               </label>
@@ -300,11 +339,11 @@ export default function TenantSettingsPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(110px,1fr)]">
               <label className="text-xs font-semibold text-[#52574f]">Rua / avenida
-                <input autoComplete="street-address" maxLength={180} className={fieldClass+" mt-2"}
+                <input required={!original?.addressComplete} autoComplete="street-address" maxLength={180} className={fieldClass+" mt-2"}
                   value={value.street ?? ""} onChange={e=>changeAddress({street:e.target.value})}/>
               </label>
               <label className="text-xs font-semibold text-[#52574f]">Número
-                <input maxLength={20} className={fieldClass+" mt-2"}
+                <input required={!original?.addressComplete} maxLength={20} className={fieldClass+" mt-2"}
                   value={value.streetNumber ?? ""} onChange={e=>changeAddress({streetNumber:e.target.value})}/>
               </label>
             </div>
@@ -340,6 +379,10 @@ export default function TenantSettingsPage() {
                     latitude:e.target.value ? value.latitude : null })}/>
               </label>
             </div>
+            {!original?.addressComplete && value.latitude !== null && value.longitude !== null &&
+              <p className="rounded-xl bg-[#edf5eb] p-3 text-[12px] text-[#486b43]">
+                Localização marcada. Confira o ponto e salve o endereço completo.
+              </p>}
             <p className="text-[11px] leading-5 text-[#8c9488]">O pin é personalizado do AICorta. Ajuste o ponto clicando no mapa; apenas endereços com coordenadas confirmadas serão exibidos como pins.</p>
           </section>
           <div className="border-t border-[#eceee8] pt-6"><p className="text-xs font-semibold text-[#52574f]">Capa da barbearia</p>
@@ -352,7 +395,7 @@ export default function TenantSettingsPage() {
               <TenantCoverCrop onChange={handleCoverChange}/>}
           </div>
           <button disabled={saving} type="submit" className={primaryButton}>
-            <Save size={17}/>{saving ? "Salvando..." : "Salvar alterações"}
+            <Save size={17}/>{saving ? "Salvando..." : !original?.addressComplete ? "Concluir cadastro e acessar painel" : "Salvar alterações"}
           </button>
         </form>}
       </Panel>

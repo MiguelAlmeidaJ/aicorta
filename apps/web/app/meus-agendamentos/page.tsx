@@ -328,7 +328,7 @@ export default function MyBookingsPage() {
               {isOpen && canManage && <div className="mt-4 rounded-2xl border border-[#e9eae4] bg-[#f8f9f5] p-4 sm:p-5">
                 <h4 className="text-[13px] font-bold text-[#2b342a]">Escolha entre as datas disponíveis</h4>
                 <p className="mt-1 text-[12px] leading-5 text-[#828c7e]">
-                  Apenas os dias e horários liberados por {item.tenant.name} estão disponíveis para remarcação.
+                  Apenas os dias com horários livres em {item.tenant.name} são exibidos. O novo horário deve ter pelo menos 1 hora de antecedência.
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-[12px] font-semibold text-[#3d493a]">
@@ -360,7 +360,8 @@ export default function MyBookingsPage() {
                   availableWeeks[item.id] ? <>
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Dias disponíveis para remarcação">
                       {availableWeeks[item.id].days
-                        .filter(row => row.date <= plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21))
+                        .filter(row => row.slots.length > 0 &&
+                          row.date <= plusDays(localToday(zone), item.tenant.bookingAdvanceDays ?? 21))
                         .map(row => {
                           const available = row.slots.length > 0;
                           const chosen = dates[item.id] === row.date;
