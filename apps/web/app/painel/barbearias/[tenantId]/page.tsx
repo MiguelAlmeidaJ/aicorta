@@ -118,7 +118,7 @@ export default function TenantOverview() {
               { title: "Equipe e convites", href: base + "/equipe", icon: UsersRound },
               { title: "Configurações", href: base + "/configuracoes", icon: Clock4 },
             ].map(item => <Link href={item.href} key={item.href}
-              className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-[#f5f6f2] px-3 py-3 text-xs font-semibold transition sm:px-4 sm:py-3.5" hover:bg-[#eceee8]">
+              className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-[#f5f6f2] px-3 py-3 text-xs font-semibold transition hover:bg-[#eceee8] sm:px-4 sm:py-3.5">
               <span className="flex items-center gap-2"><item.icon size={16}/>{item.title}</span><ArrowRight size={16}/>
             </Link>)}
           </div>
