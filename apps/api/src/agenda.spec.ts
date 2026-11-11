@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { bookingDateRange, inside, insideBookingHorizon, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
+import { bookingDateRange, inside, insideBookingHorizon, meetsBookingNotice, MIN_BOOKING_NOTICE_MS, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
 test("rejects overlapping or invalid weekly windows", () => {
   assert.equal(validWindows([{ weekday: 1, startMinute: 540, endMinute: 720 },
     { weekday: 1, startMinute: 700, endMinute: 800 }]), false);
@@ -39,4 +39,13 @@ test("o fuso da barbearia, não o UTC, define o dia e o início do prazo", () =>
   const now = new Date("2026-11-11T01:30:00.000Z");
   assert.deepEqual(bookingDateRange("America/Sao_Paulo", 7, now),
     { today: "2026-11-10", lastDate: "2026-11-17" });
+});
+
+test("agendamento exige uma hora inteira de antecedência", () => {
+  const now = new Date("2026-11-11T14:00:00.000Z");
+  assert.equal(MIN_BOOKING_NOTICE_MS, 3600000);
+  assert.equal(meetsBookingNotice(new Date("2026-11-11T14:59:59.999Z"), now), false);
+  assert.equal(meetsBookingNotice(new Date("2026-11-11T15:00:00.000Z"), now), true);
+  assert.equal(meetsBookingNotice(new Date("2026-11-11T15:15:00.000Z"), now), true);
+  assert.equal(meetsBookingNotice(new Date("invalid"), now), false);
 });
