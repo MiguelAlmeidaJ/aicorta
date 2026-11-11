@@ -10,7 +10,7 @@ type Session = { globalRole: string; memberships: Array<{ tenantId: string; role
 type Access = { client: string; barber: string };
 const guest: Access = { client: "/login", barber: "/admin/login" };
 
-export function PublicHeader({ active = "inicio" }: { active?: "inicio" | "mapa" | "contato" }) {
+export function PublicHeader({ active = "inicio" }: { active?: "inicio" | "barbearias" | "mapa" | "contato" }) {
   const [access, setAccess] = useState<Access>(guest);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -33,6 +33,7 @@ export function PublicHeader({ active = "inicio" }: { active?: "inicio" | "mapa"
 
   const navLinks = [
     { label: "Início", href: "/", id: "inicio" },
+    { label: "Barbearias", href: "/barbearias", id: "barbearias" },
     { label: "Mapa", href: "/mapa", id: "mapa" },
     { label: "Contato", href: "/contato", id: "contato" },
   ] as const;

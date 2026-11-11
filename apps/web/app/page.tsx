@@ -2,10 +2,11 @@
 
 /* eslint-disable @next/next/no-img-element -- imagens de capa hospedadas na API do AICorta */
 import Link from "next/link";
-import { type FormEvent, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, ChevronDown, Clock3, MapPin, Search, Scissors } from "lucide-react";
 import { PublicHeader } from "../components/public/public-header";
 import { PublicFooter } from "../components/public/public-footer";
+import { QuickBookingSearch } from "../components/public/quick-booking-search";
 import { API_URL, apiJson } from "../lib/api";
 
 type Faq = { id: string; question: string; answer: string };
@@ -48,8 +49,6 @@ function randomSelection(items: Establishment[]) {
 }
 
 export default function HomePage() {
-  const [query, setQuery] = useState("");
-  const [searched, setSearched] = useState("");
   const [establishments, setEstablishments] = useState<Establishment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -85,18 +84,6 @@ export default function HomePage() {
     updateCarouselControls();
   }, [establishments, loading]);
 
-  async function search(term: string) {
-    setLoading(true); setError("");
-    try {
-      const value = term.trim();
-      const params = value ? `?q=${encodeURIComponent(value)}` : "";
-      setEstablishments(randomSelection(await apiJson<Establishment[]>(`/public/tenants${params}`)));
-      setSearched(value);
-    } catch {
-      setError("Não foi possível consultar os estabelecimentos. Tente novamente.");
-    } finally { setLoading(false); }
-  }
-
   useEffect(() => {
     let active = true;
     apiJson<Faq[]>("/public/faq").then(items => { if (active) setFaq(items); }).catch(() => null);
@@ -112,11 +99,6 @@ export default function HomePage() {
     return () => { active = false; };
   }, []);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void search(query);
-    document.getElementById("barbearias")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   return <main className="min-h-dvh bg-[#f6f6f3] text-[#1b1e1a]">
     <PublicHeader active="inicio"/>
@@ -134,7 +116,7 @@ export default function HomePage() {
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <a href="#busca" className="inline-flex min-h-12 items-center justify-center gap-3 rounded-xl bg-[#1d211c] px-6 text-[13px] font-semibold text-white transition hover:bg-[#393f37]">
-              Encontrar barbearia <ArrowRight size={17}/>
+              Agendamento rápido <ArrowRight size={17}/>
             </a>
             <Link href="/mapa" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#dedfd9] bg-white px-5 text-[13px] font-semibold text-[#3e463c] transition hover:border-[#aab0a5]">
               <MapPin size={16}/> Explorar mapa
@@ -174,44 +156,22 @@ export default function HomePage() {
 
     <section id="busca" aria-labelledby="search-title" className="scroll-mt-6 bg-[#f6f6f3]">
       <div className="mx-auto max-w-[1180px] px-5 pt-12 sm:px-8 sm:pt-16">
-        <div className="relative overflow-hidden rounded-[22px] bg-[#1d221d] text-white shadow-[0_18px_52px_rgba(16,24,16,.09)]">
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[34%] lg:block">
-            {/* eslint-disable-next-line @next/next/no-img-element -- foto editorial, não é capa de um estabelecimento */}
-            <img src="https://images.unsplash.com/photo-1703792686658-24e62d626ed2?auto=format&fit=crop&w=850&q=85"
-              alt="" aria-hidden="true" loading="lazy" className="h-full w-full object-cover object-center opacity-70"/>
-            <div className="absolute inset-0 bg-gradient-to-r from-[#1d221d] via-[#1d221d]/50 to-transparent"/>
-          </div>
-          <div className="relative z-10 p-6 sm:p-9 lg:max-w-[77%] lg:px-11 lg:py-11">
-            <h2 id="search-title" className="text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-[-.045em]">
-              Encontre o lugar certo para você.
-            </h2>
-            <p className="mt-2 max-w-lg text-[13px] leading-6 text-[#bfc6bb]">
-              Busque pelo nome da barbearia ou pela região onde deseja agendar.
-            </p>
-            <form role="search" onSubmit={submit} className="mt-6 flex flex-col gap-2.5 sm:flex-row">
-              <label htmlFor="establishment-search" className="sr-only">Buscar barbearias por nome, cidade ou bairro</label>
-              <div className="flex h-[54px] min-w-0 flex-1 items-center gap-3 rounded-xl bg-white px-4 text-[#252b23] ring-1 ring-white/20 focus-within:ring-2 focus-within:ring-[#dcc27c]">
-                <Search size={19} className="shrink-0 text-[#80897e]"/>
-                <input id="establishment-search" type="search" maxLength={80} value={query}
-                  onChange={event => setQuery(event.target.value)}
-                  placeholder="Nome da barbearia, cidade ou bairro"
-                  className="w-full min-w-0 bg-transparent text-[14px] outline-none placeholder:text-[#9da49a]"/>
-                {query && <button type="button" aria-label="Limpar busca" onClick={() => { setQuery(""); void search(""); }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#737d71] hover:bg-[#eef0eb]"><X size={16}/></button>}
-              </div>
-              <button type="submit" disabled={loading}
-                className="inline-flex min-h-[54px] shrink-0 items-center justify-center gap-2 rounded-xl bg-[#e2bf68] px-7 text-[13px] font-bold text-[#1b2119] transition hover:bg-[#f1d58f] disabled:opacity-60">
-                <Search size={17}/>{loading ? "Buscando..." : "Buscar"}
-              </button>
-            </form>
-            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-[12px]">
-              <Link href="/mapa" className="inline-flex items-center gap-2 font-medium text-[#d4dcd1] hover:text-white">
-                <MapPin size={15} className="text-[#e2bf68]"/> Explorar no mapa <ArrowUpRight size={14}/>
-              </Link>
-              {searched && <button type="button" onClick={() => { setQuery(""); void search(""); }}
-                className="font-medium text-[#d4dcd1] underline underline-offset-4 hover:text-white">Ver todas as barbearias</button>}
+        <div className="relative overflow-hidden rounded-[22px] bg-[#1d221d] p-6 text-white shadow-[0_18px_52px_rgba(16,24,16,.09)] sm:p-9 lg:p-11">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#e1c078]">Agendamento rápido</p>
+              <h2 id="search-title" className="mt-2 text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-[-.045em]">
+                Encontre um horário para você.
+              </h2>
+              <p className="mt-2 max-w-xl text-[13px] leading-6 text-[#bfc6bb]">
+                Digite o serviço e escolha quando quer ser atendido. Mostraremos as barbearias com horários disponíveis.
+              </p>
             </div>
+            <Link href="/barbearias" className="inline-flex items-center gap-2 text-[12px] font-semibold text-[#e2c678] hover:text-white">
+              Ver todas as barbearias <ArrowUpRight size={15}/>
+            </Link>
           </div>
+          <QuickBookingSearch/>
         </div>
       </div>
     </section>
@@ -219,14 +179,13 @@ export default function HomePage() {
     <section id="barbearias" className="mx-auto max-w-[1180px] scroll-mt-8 px-5 pb-20 pt-14 sm:px-8 sm:pb-24 sm:pt-20" aria-labelledby="establishments-heading">
       <div className="mx-auto mb-9 max-w-[710px] text-center sm:mb-11">
         <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[#9c8053]">
-          {searched ? "Sua busca" : "Explore e agende"}
+          Explore e agende
         </p>
         <h2 id="establishments-heading" className="mt-3 text-[clamp(1.9rem,3.7vw,2.65rem)] font-semibold leading-[1.15] tracking-[-.055em]">
-          {searched ? "Barbearias encontradas" : "Barbearias para conhecer"}
+          Barbearias para conhecer
         </h2>
         <p className="mt-3 text-[13px] leading-6 text-[#7e887a]">
-          {searched ? <>Resultados para <strong className="font-semibold text-[#30392f]">{searched}</strong>.</>
-            : "Conheça os estabelecimentos, veja os serviços e escolha seu próximo horário."}
+          Conheça alguns estabelecimentos, veja os serviços e escolha seu próximo horário.
         </p>
       </div>
       {error && <p role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
@@ -282,9 +241,14 @@ export default function HomePage() {
         <Search size={27} className="mx-auto text-[#9ca398]"/>
         <h3 className="mt-4 text-base font-semibold">Nenhuma barbearia encontrada</h3>
         <p className="mt-2 text-sm text-[#858d81]">Tente outro nome ou localidade para encontrar estabelecimentos.</p>
-        <button type="button" onClick={() => { setQuery(""); void search(""); }}
-          className="mt-5 rounded-xl border border-[#dfe3da] px-5 py-3 text-xs font-semibold transition hover:bg-[#f6f7f4]">Ver todas as barbearias</button>
+        <Link href="/barbearias"
+          className="mt-5 inline-flex rounded-xl border border-[#dfe3da] px-5 py-3 text-xs font-semibold transition hover:bg-[#f6f7f4]">Ver todas as barbearias</Link>
       </div>}
+      <div className="mt-8 text-center">
+        <Link href="/barbearias" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#dce2d8] bg-white px-5 text-[12px] font-semibold text-[#303a2e] hover:bg-[#edf1ea]">
+          Explorar todas as barbearias <ArrowRight size={16}/>
+        </Link>
+      </div>
       <div className="relative mt-11 flex flex-col items-start justify-between gap-6 overflow-hidden rounded-[20px] bg-[#1d241e] px-6 py-8 text-white sm:flex-row sm:items-center sm:px-9 sm:py-10">
         <div className="pointer-events-none absolute -right-10 -top-20 h-[220px] w-[220px] rounded-full border border-[#ffffff12]"/>
         <div className="pointer-events-none absolute -bottom-24 right-[14%] h-[200px] w-[200px] rounded-full border border-[#ffffff10]"/>

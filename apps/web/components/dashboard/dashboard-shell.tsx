@@ -178,25 +178,25 @@ export function DashboardShell({ children, mode, tenantId }: {
     <div className="shrink-0 border-t border-white/[.08] px-7 py-5 text-[11px] text-[#747a72]">Versão {process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0"}</div>
   </div>;
 
-  return <div className="min-h-screen bg-[#f6f7f4] text-[#161815]">
+  return <div className="min-h-dvh min-w-0 overflow-x-clip bg-[#f6f7f4] text-[#161815]">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] bg-[#0b0c0a] xl:block">{sidebar}</aside>
-    {mobileOpen && <div className="fixed inset-0 z-50 xl:hidden">
+    {mobileOpen && <div className="fixed inset-0 z-50 xl:hidden" role="presentation">
       <button aria-label="Fechar navegação" className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)}/>
-      <aside className="relative h-full w-[270px] bg-[#0b0c0a] shadow-2xl">
+      <aside aria-label="Menu do painel" className="relative h-full w-[min(85vw,310px)] bg-[#0b0c0a] shadow-2xl">
         <button aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-white"><X size={20}/></button>
         {sidebar}
       </aside>
     </div>}
-    <div className="min-h-screen xl:pl-[264px]">
-      <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#ecece7] bg-[#f8f8f5]/95 px-5 backdrop-blur-lg sm:px-8 lg:px-12">
-        <div className="flex items-center gap-4">
-          <button aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="rounded-xl border border-[#e2e4de] bg-white p-2.5 xl:hidden"><Menu size={20}/></button>
+    <div className="min-h-dvh min-w-0 xl:pl-[264px]">
+      <header className="sticky top-0 z-20 flex h-[60px] min-w-0 items-center justify-between gap-2 border-b border-[#ecece7] bg-[#f8f8f5]/95 px-4 backdrop-blur-lg sm:h-[72px] sm:px-8 lg:px-12">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <button type="button" aria-label="Abrir menu" onClick={() => setMobileOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#e2e4de] bg-white xl:hidden"><Menu size={20}/></button>
           <div className="hidden items-center gap-2 text-xs text-[#9a9e96] sm:flex">
             <span>{mode === "system" ? "Plataforma" : "Minha barbearia"}</span>
             <ChevronRight size={15}/>
             <span className="font-semibold text-[#333630]">{currentTitle}</span>
           </div>
-          <span className="text-sm font-bold sm:hidden">{currentTitle}</span>
+          <span className="truncate text-[13px] font-bold sm:hidden">{currentTitle}</span>
           {canSwitchWorkspace ? <div className="relative">
             <button type="button" aria-haspopup="menu" aria-expanded={showSwitch}
               onClick={() => setShowSwitch(value => !value)}
@@ -216,14 +216,14 @@ export function DashboardShell({ children, mode, tenantId }: {
             </div>}
           </div> : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <span className="hidden items-center gap-2 rounded-full border border-[#e7e9e3] bg-white px-3.5 py-2 text-[11px] font-semibold text-[#70766d] sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-[#5d8062]"/> Ambiente beta
           </span>
           <UserMenu profile={profile} loginHref="/admin/login"/>
         </div>
       </header>
-      <main className="mx-auto max-w-[1560px] px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
+      <main className="mx-auto w-full min-w-0 max-w-[1560px] px-3 py-5 min-[390px]:px-4 sm:px-8 sm:py-7 lg:px-10 lg:py-9">
         {mode === "tenant" && billing?.pendingCount ? <section role={billing.overdueCount ? "alert" : "status"}
           className={`mb-6 rounded-2xl border p-5 ${billing.overdueCount ? "border-[#e7c6c2] bg-[#fbefed] text-[#7e3833]" : "border-[#eadfab] bg-[#fff9df] text-[#67571e]"}`}>
           <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0" size={20}/><div>
@@ -241,7 +241,7 @@ export function DashboardShell({ children, mode, tenantId }: {
             "O acesso foi suspenso pela administração. Entre em contato com o responsável pela plataforma."}</p>
         </section> : children}
       </main>
-      <footer className="mx-auto max-w-[1560px] px-5 pb-8 text-[11px] text-[#a2a69f] sm:px-8 lg:px-10">© AICorta · Painel administrativo</footer>
+      <footer className="mx-auto max-w-[1560px] px-4 pb-5 text-[10px] text-[#a2a69f] sm:px-8 sm:pb-8 sm:text-[11px] lg:px-10">© AICorta · Painel administrativo</footer>
     </div>
   </div>;
 }

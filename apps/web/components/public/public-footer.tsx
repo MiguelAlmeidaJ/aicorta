@@ -6,6 +6,7 @@ import { BrandLogo } from "../brand/brand-provider";
 
 const navigation = [
   { label: "Início", href: "/" },
+  { label: "Barbearias", href: "/barbearias" },
   { label: "Mapa", href: "/mapa" },
   { label: "Contato", href: "/contato" },
   { label: "Meus agendamentos", href: "/meus-agendamentos" },
