@@ -8,6 +8,7 @@ import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { localParts, localToUtc } from "./scheduling-time";
 import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
+import { tenantAddressComplete } from "./tenant-address";
 
 export class ChangeTenantStatusDto {
   @IsIn(["ACTIVE", "SUSPENDED"])
@@ -122,7 +123,8 @@ export class DashboardService {
     const tenant = await this.db.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { id: true, name: true, slug: true, status: true,
-        billingDueDay: true, timezone: true },
+        billingDueDay: true, timezone: true, postalCode: true, street: true, streetNumber: true,
+        neighborhood: true, city: true, state: true, latitude: true, longitude: true },
     });
     const now = new Date();
     const localToday = localParts(now, tenant.timezone).date;
@@ -162,7 +164,7 @@ export class DashboardService {
       select: { role: true },
     });
     return { tenant, actorRole: actor?.role, appointmentsToday, pending, team, clients, services,
-      setup: { services: services > 0, shopHours: shopHours > 0,
+      setup: { address: tenantAddressComplete(tenant), services: services > 0, shopHours: shopHours > 0,
         professionalHours: staffHours > 0, assignedServices: assignedServices > 0 },
       completedServiceValueCents: serviceValue._sum.priceCents ?? 0,
       receivedPaymentsCents: paymentsReceived._sum.amountCents ?? 0, upcoming };
