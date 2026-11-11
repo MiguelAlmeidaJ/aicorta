@@ -108,7 +108,9 @@ export class PlatformStaffService {
       });
       if (!manager) throw new BadRequestException("Manager não encontrado.");
       if (manager.isActive !== active) {
-        await tx.user.update({ where: { id: managerId }, data: { isActive: active } });
+        await tx.user.update({ where: { id: managerId }, data: {
+          isActive: active, ...(!active && { passwordChangedAt: new Date() }),
+        } });
         if (!active) await tx.authSession.updateMany({
           where: { userId: managerId, revokedAt: null }, data: { revokedAt: new Date() },
         });
