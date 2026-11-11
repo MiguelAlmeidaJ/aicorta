@@ -28,15 +28,29 @@ export class PlatformAuditService {
       data: { actorUserId, action, targetType, targetId, ...(details && { details }) },
     });
   }
-  list(take: number, cursor?: string) {
-    return this.db.platformAudit.findMany({
-      take: Math.min(Math.max(take, 1), 100), ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: {
-        id: true, action: true, targetType: true, targetId: true, details: true, createdAt: true,
-        actor: { select: { id: true, name: true, username: true, globalRole: true } },
-      },
-    });
+  async list(take: number) {
+    const [platform, billing] = await Promise.all([
+      this.db.platformAudit.findMany({
+        take, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true, action: true, targetType: true, targetId: true, details: true, createdAt: true,
+          actor: { select: { id: true, name: true, username: true, globalRole: true } },
+        },
+      }),
+      this.db.billingAudit.findMany({
+        take, orderBy: { createdAt: "desc" },
+        select: { id: true, tenantId: true, action: true, payload: true, createdAt: true,
+          actor: { select: { id: true, name: true, username: true, globalRole: true } } },
+      }),
+    ]);
+    return [
+      ...platform.map(event => ({ ...event, source: "PLATFORM", details: event.details })),
+      ...billing.map(event => ({
+        id: event.id, action: event.action, targetType: "BILLING",
+        targetId: event.tenantId, source: "BILLING", details: event.payload,
+        createdAt: event.createdAt, actor: event.actor,
+      })),
+    ].sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, take);
   }
 }
 
@@ -123,11 +137,11 @@ export class PlatformStaffController {
     return this.staff.changeStatus(req.user.id, id, dto.active === "true");
   }
   @UseGuards(JwtAuthGuard, SystemGuard) @Get("audit")
-  audit(@Query("take") take?: string, @Query("cursor") cursor?: string) {
+  audit(@Query("take") take?: string) {
     const parsed = Number(take ?? "50");
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
       throw new BadRequestException("Limite deve estar entre 1 e 100.");
     }
-    return this.audits.list(parsed, cursor);
+    return this.audits.list(parsed);
   }
 }
