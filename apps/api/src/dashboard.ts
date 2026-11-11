@@ -4,7 +4,7 @@ import {
 import { IsEmail, IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import { hash } from "bcryptjs";
 import { PrismaService } from "./prisma.service";
-import { JwtAuthGuard, SystemGuard } from "./auth";
+import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { localParts, localToUtc } from "./scheduling-time";
 import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
@@ -162,19 +162,19 @@ export class DashboardService {
 export class DashboardController {
   constructor(private readonly dashboards: DashboardService) {}
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get("system/dashboard")
   system() { return this.dashboards.system(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get("system/tenants")
   tenants() { return this.dashboards.tenants(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Post("system/tenants")
   createTenant(@Body() dto: CreateTenantDto) { return this.dashboards.createTenant(dto); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Patch("system/tenants/:tenantId/status")
   setStatus(@Param("tenantId") tenantId: string, @Body() dto: ChangeTenantStatusDto) {
     return this.dashboards.setTenantStatus(tenantId, dto.status);
