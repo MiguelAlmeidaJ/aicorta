@@ -4,7 +4,7 @@ import { Type } from "class-transformer";
 import { PrismaService } from "./prisma.service";
 import { JwtAuthGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
-import { inside, insideBookingHorizon, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
+import { inside, insideBookingHorizon, meetsBookingNotice, localParts, localToUtc, overlaps, validDate, validWindows, weekday } from "./scheduling-time";
 
 export class WorkWindowDto {
   @IsInt() @Min(0) @Max(6) weekday!: number;
@@ -154,7 +154,7 @@ export class AgendaService {
       if (!inside(shop, m, m + durationMinutes) || !inside(staff, m, m + durationMinutes)) continue;
       const start = localToUtc(date, m, tenant.timezone);
       const end = start && new Date(start.getTime() + durationMinutes * 60000);
-      if (!start || !end || start <= now) continue;
+      if (!start || !end || !meetsBookingNotice(start, now)) continue;
       const endLocal = localParts(end, tenant.timezone);
       if (endLocal.date !== date || endLocal.minute !== m + durationMinutes) continue;
       if ([...bookings, ...timeOff].some(block => overlaps(start, end, block.startsAt, block.endsAt))) continue;
