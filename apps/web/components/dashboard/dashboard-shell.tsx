@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
   AlertTriangle, CircleDollarSign, HelpCircle, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck, ScrollText, UserCog,
-  UsersRound, UserRoundPlus, WalletCards, X, type LucideIcon,
+  UsersRound, UserRoundPlus, WalletCards, MapPin, X, type LucideIcon,
 } from "lucide-react";
 import { apiJson } from "../../lib/api";
 import { BrandLogo } from "../brand/brand-provider";
@@ -28,6 +28,7 @@ export function DashboardShell({ children, mode, tenantId }: {
   const [showSwitch, setShowSwitch] = useState(false);
   const [error, setError] = useState("");
   const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [addressOnboarding, setAddressOnboarding] = useState(false);
   const membership = profile?.memberships.find(item => item.tenantId === tenantId);
   const base = mode === "system" ? "/system" : `/painel/barbearias/${tenantId}`;
 
@@ -36,7 +37,7 @@ export function DashboardShell({ children, mode, tenantId }: {
     const profileRequest = apiJson<Profile>("/auth/me");
     const billingRequest = mode === "tenant" && tenantId ?
       apiJson<BillingSummary>(`/tenants/${tenantId}/billing`).catch(() => null) : Promise.resolve(null);
-    Promise.all([profileRequest, billingRequest]).then(([result, billingResult]) => {
+    Promise.all([profileRequest, billingRequest]).then(async ([result, billingResult]) => {
       if (!alive) return;
       if (mode === "system" && !["SYSTEM", "MANAGER"].includes(result.globalRole)) {
         router.replace("/painel"); return;
@@ -44,6 +45,17 @@ export function DashboardShell({ children, mode, tenantId }: {
       if (mode === "tenant" && !result.memberships.some(m =>
         m.tenantId === tenantId && ["ADMIN", "EMPLOYEE"].includes(m.role))) {
         router.replace("/painel"); return;
+      }
+      // A primeira configuração é exigida somente do proprietário.
+      // Outros administradores/profissionais não ficam presos ao onboarding.
+      if (mode === "tenant" && tenantId && result.memberships.some(m =>
+        m.tenantId === tenantId && m.role === "ADMIN")) {
+        const settings = await apiJson<{ ownerId: string; addressComplete: boolean }>(
+          `/tenants/${tenantId}/settings`);
+        if (!alive) return;
+        setAddressOnboarding(settings.ownerId === result.id && !settings.addressComplete);
+      } else {
+        setAddressOnboarding(false);
       }
       setProfile(result);
       setBilling(billingResult);
@@ -53,6 +65,13 @@ export function DashboardShell({ children, mode, tenantId }: {
     });
     return () => { alive = false; };
   }, [mode, tenantId, router]);
+
+  const onboardingPath = mode === "tenant" ? `${base}/configuracoes` : "";
+  useEffect(() => {
+    if (!busy && profile && addressOnboarding && pathname !== onboardingPath) {
+      router.replace(onboardingPath + "?primeiro-acesso=1#endereco-completo");
+    }
+  }, [addressOnboarding, busy, onboardingPath, pathname, profile, router]);
 
   function closeNavigation() {
     setMobileOpen(false);
@@ -113,6 +132,22 @@ export function DashboardShell({ children, mode, tenantId }: {
           Voltar à visão geral
         </Link>
       </div>
+    </div>;
+  }
+
+  if (addressOnboarding && pathname !== onboardingPath) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#f6f7f4] px-5">
+      <section className="w-full max-w-md rounded-2xl border border-[#e2e5dd] bg-white p-7 text-center shadow-sm">
+        <MapPin className="mx-auto text-[#9e8a48]" size={28}/>
+        <h1 className="mt-4 text-xl font-bold">Complete o cadastro da sua barbearia</h1>
+        <p className="mt-2 text-[13px] leading-6 text-[#788275]">
+          Antes de utilizar o painel, informe o endereço completo e confirme a localização no mapa.
+        </p>
+        <Link href={onboardingPath + "?primeiro-acesso=1#endereco-completo"}
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-[#1d221c] px-5 text-xs font-semibold text-white">
+          Cadastrar endereço <ChevronRight size={16} className="ml-2"/>
+        </Link>
+      </section>
     </div>;
   }
 
