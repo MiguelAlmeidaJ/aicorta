@@ -6,7 +6,7 @@ import { ArrowRight, CalendarDays, Clock3, MapPin, Search, Scissors } from "luci
 import { API_URL, apiJson } from "../../lib/api";
 
 type Match = {
-  id: string; name: string; slug: string; timezone: string;
+  id: string; name: string; slug: string; timezone: string; slotDate: string;
   city: string | null; state: string | null; neighborhood: string | null;
   coverUrl: string | null; hasCustomCover: boolean;
   serviceId: string; serviceName: string; durationMinutes: number; priceCents: number;
@@ -93,9 +93,7 @@ export function QuickBookingSearch() {
       {result.items.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {result.items.map(item => {
           const query = new URLSearchParams({ service: item.serviceId, professional: item.membershipId,
-            date: new Intl.DateTimeFormat("en-CA", { year:"numeric", month:"2-digit", day:"2-digit",
-              timeZone:item.timezone }).format(new Date(item.startsAt)),
-            time: item.startsAt });
+            date: item.slotDate, time: item.startsAt });
           return <article key={item.id} className="min-w-0 overflow-hidden rounded-xl border border-[#e4e9df] bg-[#fbfcfa]">
             <div className="flex items-start gap-3 p-3">
               {item.coverUrl ?
