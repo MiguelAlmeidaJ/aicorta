@@ -4,7 +4,7 @@ import {
 import { IsInt, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
 import { randomBytes, createHash } from "node:crypto";
 import { PrismaService } from "./prisma.service";
-import { JwtAuthGuard, SystemGuard } from "./auth";
+import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { Throttle } from "@nestjs/throttler";
 
 const digest = (input: string) => createHash("sha256").update(input).digest("hex");
@@ -67,18 +67,18 @@ export class OwnerInviteService {
 export class OwnerInviteController {
   constructor(private readonly invites: OwnerInviteService) {}
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   create(@Req() req: { user: { id: string } }, @Body() dto: CreateOwnerInviteDto) {
     return this.invites.create(req.user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get()
   list() { return this.invites.list(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Patch(":id/revoke")
   revoke(@Param("id") id: string) { return this.invites.revoke(id); }
 
