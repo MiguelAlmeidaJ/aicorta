@@ -44,7 +44,7 @@ export default function AuditPage() {
   ].some(value => value.toLowerCase().includes(query.toLowerCase().trim()))), [events, query]);
 
   return <div className="space-y-6 pb-12">
-    <PageHeader eyebrow="PLATAFORMA / SEGURANÇA" title="Auditoria"
+    <PageHeader kicker="PLATAFORMA / SEGURANÇA" title="Auditoria"
       description="Histórico das principais ações administrativas e das movimentações de mensalidades. Acesso exclusivo do SYSTEM."/>
     <section className="overflow-hidden rounded-[22px] border border-[#e5e8e0] bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eceee9] px-5 py-5 sm:px-7">
