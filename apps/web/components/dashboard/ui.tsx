@@ -17,41 +17,41 @@ export const secondaryButton = "inline-flex min-h-10 items-center justify-center
 export function PageHeader({ kicker, title, description, action }: {
   kicker: string; title: string; description?: string; action?: ReactNode;
 }) {
-  return <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-    <div className="max-w-2xl">
-      <div className="mb-3 text-[11px] font-bold uppercase tracking-[.22em] text-[#888d85]">{kicker}</div>
-      <h1 className="text-3xl font-bold tracking-[-.055em] text-[#151715] sm:text-4xl">{title}</h1>
-      {description && <p className="mt-3 text-sm leading-6 text-[#7d827a]">{description}</p>}
+  return <div className="mb-5 flex min-w-0 flex-col justify-between gap-4 sm:mb-8 sm:flex-row sm:items-end sm:gap-5">
+    <div className="min-w-0 max-w-2xl">
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-[.16em] sm:mb-3 sm:text-[11px] sm:tracking-[.22em] text-[#888d85]">{kicker}</div>
+      <h1 className="break-words text-[clamp(1.55rem,6.3vw,2.25rem)] font-bold leading-tight tracking-[-.05em] text-[#151715] sm:text-4xl">{title}</h1>
+      {description && <p className="mt-2 text-[13px] leading-5 text-[#7d827a] sm:mt-3 sm:text-sm sm:leading-6">{description}</p>}
     </div>
-    {action}
+    {action && <div className="min-w-0 shrink-0">{action}</div>}
   </div>;
 }
 
 export function StatCard({ label, value, icon: Icon, note, dark = false }: {
   label: string; value: string | number; icon: LucideIcon; note?: string; dark?: boolean;
 }) {
-  return <article className={`relative overflow-hidden rounded-[22px] border p-6 ${dark
+  return <article className={`relative flex min-h-[152px] min-w-0 flex-col overflow-hidden rounded-[18px] border p-4 sm:min-h-[185px] sm:rounded-[22px] sm:p-6 ${dark
     ? "border-[#151715] bg-[#151715] text-[#f7f8f5]"
     : "border-[#e9eae5] bg-white text-[#191b18]"}`}>
-    <div className="flex items-center justify-between">
-      <p className={`text-[13px] font-medium ${dark ? "text-[#afb3ad]" : "text-[#83887f]"}`}>{label}</p>
-      <span className={`rounded-xl p-2.5 ${dark ? "bg-white/10" : "bg-[#f4f5f1]"}`}><Icon size={18} strokeWidth={1.8}/></span>
+    <div className="flex min-w-0 items-start justify-between gap-2">
+      <p className={`min-w-0 text-[11px] font-medium leading-[1.4] sm:text-[13px] ${dark ? "text-[#afb3ad]" : "text-[#83887f]"}`}>{label}</p>
+      <span className={`shrink-0 rounded-lg p-2 sm:rounded-xl sm:p-2.5 ${dark ? "bg-white/10" : "bg-[#f4f5f1]"}`}><Icon size={17} strokeWidth={1.8}/></span>
     </div>
-    <p className="mt-7 text-[35px] font-bold tracking-[-.06em] tabular-nums">{value}</p>
-    <p className={`mt-2 text-xs ${dark ? "text-[#949a91]" : "text-[#9a9e97]"}`}>{note ?? "Dados atualizados"}</p>
+    <p className="mt-auto pt-4 text-[clamp(1.5rem,5vw,2.2rem)] font-bold leading-none tracking-[-.06em] tabular-nums sm:pt-6">{value}</p>
+    <p className={`mt-2 line-clamp-2 text-[10px] leading-4 sm:text-xs ${dark ? "text-[#949a91]" : "text-[#9a9e97]"}`}>{note ?? "Dados atualizados"}</p>
   </article>;
 }
 
 export function Panel({ title, description, right, children }: {
   title: string; description?: string; right?: ReactNode; children: ReactNode;
 }) {
-  return <section className="rounded-[22px] border border-[#e9eae5] bg-white">
-    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#eff0eb] px-6 py-5">
-      <div><h2 className="text-base font-bold tracking-tight text-[#20221f]">{title}</h2>
+  return <section className="min-w-0 overflow-hidden rounded-[18px] border border-[#e9eae5] bg-white sm:rounded-[22px]">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eff0eb] px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
+      <div className="min-w-0"><h2 className="text-sm font-bold sm:text-base tracking-tight text-[#20221f]">{title}</h2>
         {description && <p className="mt-1 text-xs text-[#93978e]">{description}</p>}</div>
       {right}
     </div>
-    <div className="p-6">{children}</div>
+    <div className="min-w-0 p-4 sm:p-6">{children}</div>
   </section>;
 }
 
@@ -73,10 +73,10 @@ export function StatusPill({ status }: { status: string }) {
 export function EmptyState({ icon: Icon, title, description }: {
   icon: LucideIcon; title: string; description: string;
 }) {
-  return <div className="flex flex-col items-center justify-center px-5 py-16 text-center">
-    <span className="mb-5 rounded-2xl bg-[#f1f2ee] p-4 text-[#777c73]"><Icon size={24}/></span>
+  return <div className="flex flex-col items-center justify-center px-3 py-9 text-center sm:px-5 sm:py-16">
+    <span className="mb-3 rounded-2xl bg-[#f1f2ee] p-3 sm:mb-5 sm:p-4 text-[#777c73]"><Icon size={24}/></span>
     <h3 className="text-sm font-semibold">{title}</h3>
-    <p className="mt-2 max-w-sm text-sm leading-6 text-[#91958d]">{description}</p>
+    <p className="mt-2 max-w-sm text-[12px] leading-5 text-[#91958d] sm:text-sm sm:leading-6">{description}</p>
   </div>;
 }
 
