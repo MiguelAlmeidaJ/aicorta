@@ -58,7 +58,7 @@ test("criar MANAGER grava o papel correto, nunca retorna senha, e audita", async
       actions.push(params.data.action); return {};
     } },
   };
-  const service = new PlatformStaffService({ $transaction: async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx) } as never);
+  const service = new PlatformStaffService({ $transaction: async (fn: (client: unknown) => Promise<unknown>) => fn(tx) } as never);
   const user = await service.create("system-id", {
     name: "João", username: "joao", email: "joao@example.com",
     whatsapp: "32999999999", password: "senha-super-segura-2026",
@@ -82,7 +82,7 @@ test("desativar manager revoga sessões e cria auditoria", async () => {
       actions.push(params.data.action); return {};
     } },
   };
-  const service = new PlatformStaffService({ $transaction: async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx) } as never);
+  const service = new PlatformStaffService({ $transaction: async (fn: (client: unknown) => Promise<unknown>) => fn(tx) } as never);
   const result = await service.changeStatus("system-id", "manager-id", false);
   assert.equal(result.isActive, false);
   assert.equal(revoked, true);
