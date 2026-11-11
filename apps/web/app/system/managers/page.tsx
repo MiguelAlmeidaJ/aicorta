@@ -61,7 +61,7 @@ export default function ManagersPage() {
   }
 
   return <div className="space-y-6 pb-12">
-    <PageHeader eyebrow="PLATAFORMA / ACESSOS" title="Managers"
+    <PageHeader kicker="PLATAFORMA / ACESSOS" title="Managers"
       description="Crie operadores da plataforma. Os managers podem administrar barbearias, mensalidades e convites, sem acesso às configurações exclusivas do SYSTEM."/>
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {message && <div role="status" className="rounded-xl border border-[#dce6d8] bg-[#f1f7ef] p-4 text-sm text-[#41613d]">{message}</div>}
