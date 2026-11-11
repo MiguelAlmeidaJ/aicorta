@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- identidade visual vem da API configurável */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Scissors } from "lucide-react";
 import { API_URL } from "../../lib/api";
 
@@ -24,11 +25,15 @@ export const assetUrl = (path: string | null) => path ? `${API_URL}${path}` : nu
 
 export function BrandProvider({ children }: { children: ReactNode }) {
   const [brand, setBrand] = useState<BrandConfig>(defaultBrand);
+  const router = useRouter();
   async function reload() {
     try {
       const response = await fetch(`${API_URL}/branding`, { cache: "no-store" });
       if (!response.ok) return;
-      setBrand(await response.json());
+      const updated = await response.json() as BrandConfig;
+      setBrand(updated);
+      // Refresh Next metadata (favicon URL/version) without touching React-managed <head> nodes.
+      router.refresh();
     } catch { /* Offline: keep safe default branding */ }
   }
   useEffect(() => {
@@ -43,16 +48,9 @@ export function BrandProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--brand-navy", brand.navy);
     root.style.setProperty("--brand-gold", brand.gold);
     root.style.setProperty("--brand-silver", brand.silver);
-    document.title = `${brand.name} | Gestão de barbearias`;
-    // Remove os ícones registrados pelo Next.js para que o navegador não escolha
-    // uma versão estática/cached no lugar do favicon configurado pelo SYSTEM.
-    document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="shortcut icon"]')
-      .forEach(item => item.remove());
-    const icon = document.createElement("link");
-    icon.rel = "icon";
-    icon.setAttribute("data-aicorta-favicon", "true");
-    icon.href = `/favicon?v=${encodeURIComponent(brand.updatedAt ?? "default")}`;
-    document.head.appendChild(icon);
+    // Nunca remover, adicionar ou reordenar elementos <head> manualmente:
+    // o React/Next gerencia title e icons via Metadata. Alterar esses nós fora
+    // do React causava removeChild(null) e cliques/navegação inconsistentes.
   }, [brand]);
   return <BrandContext.Provider value={{ brand, reload }}>{children}</BrandContext.Provider>;
 }
