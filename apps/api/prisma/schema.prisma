@@ -10,6 +10,7 @@ datasource db {
 
 enum GlobalRole {
   USER
+  MANAGER
   SYSTEM
 }
 
@@ -127,6 +128,7 @@ model User {
   voidedPayments     Payment[]           @relation("PaymentVoidedBy")
   confirmedMonthlyFees MonthlyFee[]      @relation("MonthlyFeeConfirmedBy")
   billingAuditEvents BillingAudit[]       @relation("BillingAuditActor")
+  platformAuditEvents PlatformAudit[]    @relation("PlatformAuditActor")
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 }
@@ -556,4 +558,20 @@ model PlatformFaq {
   updatedAt DateTime @updatedAt
 
   @@index([isActive, position])
+}
+
+
+model PlatformAudit {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @db.Uuid
+  action      String   @db.VarChar(64)
+  targetType  String   @db.VarChar(40)
+  targetId    String?  @db.VarChar(100)
+  details     Json?
+  createdAt   DateTime @default(now())
+  actor       User?    @relation("PlatformAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
 }
