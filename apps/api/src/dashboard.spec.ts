@@ -14,7 +14,7 @@ test("tenant status DTO accepts only ACTIVE or SUSPENDED", async () => {
 
 test("status change targets one tenant by ID", async () => {
   let where: unknown;
-  const db = { tenant: { update: async (args: { where: unknown }) => {
+  const db = { $transaction: async (run: (tx: unknown) => Promise<unknown>) => run(db), tenant: { update: async (args: { where: unknown }) => {
     where = args.where;
     return { id: "barbearia-a", name: "Barbearia A", status: "SUSPENDED" };
   } } };

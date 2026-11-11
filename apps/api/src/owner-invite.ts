@@ -4,7 +4,7 @@ import {
 import { IsInt, IsString, Max, MaxLength, Min, MinLength } from "class-validator";
 import { randomBytes, createHash } from "node:crypto";
 import { PrismaService } from "./prisma.service";
-import { JwtAuthGuard, SystemGuard } from "./auth";
+import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { Throttle } from "@nestjs/throttler";
 
 const digest = (input: string) => createHash("sha256").update(input).digest("hex");
@@ -19,12 +19,19 @@ export class OwnerInviteService {
   constructor(private readonly db: PrismaService) {}
   async create(issuedById: string, dto: CreateOwnerInviteDto) {
     const token = randomBytes(32).toString("base64url");
-    const invite = await this.db.ownerInvite.create({
-      data: {
-        issuedById, referenceName: dto.referenceName.trim(), billingDueDay: dto.billingDueDay,
-        tokenHash: digest(token), expiresAt: new Date(Date.now() + 7 * 86400000),
-      },
-      select: { id: true, referenceName: true, billingDueDay: true, expiresAt: true },
+    const invite = await this.db.$transaction(async tx => {
+      const created = await tx.ownerInvite.create({
+        data: {
+          issuedById, referenceName: dto.referenceName.trim(), billingDueDay: dto.billingDueDay,
+          tokenHash: digest(token), expiresAt: new Date(Date.now() + 7 * 86400000),
+        },
+        select: { id: true, referenceName: true, billingDueDay: true, expiresAt: true },
+      });
+      await tx.platformAudit.create({ data: {
+        actorUserId: issuedById, action: "OWNER_INVITE_CREATED", targetType: "OWNER_INVITE",
+        targetId: created.id, details: { referenceName: created.referenceName },
+      } });
+      return created;
     });
     const url = new URL("/cadastro", process.env.WEB_ORIGIN ?? "http://localhost:3000");
     url.searchParams.set("token", token);
@@ -54,12 +61,17 @@ export class OwnerInviteService {
     return { valid: true, expiresAt: invite.expiresAt };
   }
 
-  async revoke(id: string) {
-    const result = await this.db.ownerInvite.updateMany({
-      where: { id, consumedAt: null, revokedAt: null }, data: { revokedAt: new Date() },
+  async revoke(id: string, actorUserId: string) {
+    return this.db.$transaction(async tx => {
+      const result = await tx.ownerInvite.updateMany({
+        where: { id, consumedAt: null, revokedAt: null }, data: { revokedAt: new Date() },
+      });
+      if (result.count !== 1) throw new BadRequestException("Convite já utilizado ou revogado");
+      await tx.platformAudit.create({ data: {
+        actorUserId, action: "OWNER_INVITE_REVOKED", targetType: "OWNER_INVITE", targetId: id,
+      } });
+      return { ok: true };
     });
-    if (result.count !== 1) throw new BadRequestException("Convite já utilizado ou revogado");
-    return { ok: true };
   }
 }
 
@@ -67,20 +79,22 @@ export class OwnerInviteService {
 export class OwnerInviteController {
   constructor(private readonly invites: OwnerInviteService) {}
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   create(@Req() req: { user: { id: string } }, @Body() dto: CreateOwnerInviteDto) {
     return this.invites.create(req.user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get()
   list() { return this.invites.list(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Patch(":id/revoke")
-  revoke(@Param("id") id: string) { return this.invites.revoke(id); }
+  revoke(@Param("id") id: string, @Req() req: { user: { id: string } }) {
+    return this.invites.revoke(id, req.user.id);
+  }
 
   @Get("verify")
   @Throttle({ default: { limit: 20, ttl: 60_000 } })

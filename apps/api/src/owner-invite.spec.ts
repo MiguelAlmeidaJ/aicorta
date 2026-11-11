@@ -83,7 +83,8 @@ test("registration without a valid invite never creates an account", async () =>
 
 test("invite issue returns link and stores only hash", async () => {
   let data: Record<string, unknown> | undefined;
-  const db = { ownerInvite: { create: async (args: { data: Record<string, unknown> }) => {
+  const db = { $transaction: async (run: (tx: unknown) => Promise<unknown>) => run(db),
+    platformAudit: { create: async () => ({}) }, ownerInvite: { create: async (args: { data: Record<string, unknown> }) => {
     data = args.data;
     return { id: "invite", referenceName: "Maria", billingDueDay: 20, expiresAt: new Date() };
   } } };

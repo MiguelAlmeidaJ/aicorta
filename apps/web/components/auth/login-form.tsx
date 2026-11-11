@@ -43,7 +43,7 @@ export function LoginForm({ mode }: { mode: "client" | "admin" }) {
       const profileResponse = await fetch(`${API_URL}/auth/me`, { credentials: "include", cache: "no-store" });
       if (!profileResponse.ok) throw new Error("Não foi possível validar o acesso administrativo.");
       const profile = await profileResponse.json() as Profile;
-      if (profile.globalRole === "SYSTEM") { router.replace(safeNext ?? "/system"); return; }
+      if (["SYSTEM", "MANAGER"].includes(profile.globalRole)) { router.replace(safeNext ?? "/system"); return; }
       const membership = profile.memberships.find(item =>
         ["ADMIN", "EMPLOYEE"].includes(item.role) && item.tenant.status === "ACTIVE");
       if (!membership) {

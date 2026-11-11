@@ -14,7 +14,7 @@ import { RecoveryController, RecoveryService } from "./recovery";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaService } from "./prisma.service";
-import { AuthController, AuthService, JwtAuthGuard, SystemGuard } from "./auth";
+import { AuthController, AuthService, JwtAuthGuard, PlatformStaffGuard, SystemGuard } from "./auth";
 import { HealthController } from "./health";
 import { BookingController, BookingService } from "./booking";
 import { ServiceOrderController, ServiceOrderService } from "./service-orders";
@@ -22,6 +22,7 @@ import { CashController, CashService } from "./cash";
 import { BillingController, BillingSchedulerService, BillingService } from "./billing";
 import { PlatformFaqController, PlatformFaqService } from "./platform-faq";
 import { ContactController, ContactService } from "./contact";
+import { PlatformStaffController, PlatformStaffService, PlatformAuditService } from "./platform-staff";
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { ContactController, ContactService } from "./contact";
       signOptions: { expiresIn: "15m" },
     }),
   ],
-  controllers: [ContactController, HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
-  providers: [ContactService, PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, PlatformFaqService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  controllers: [PlatformStaffController, ContactController, HealthController, AuthController, RecoveryController, BookingController, ServiceOrderController, CashController, BillingController, PlatformFaqController, ServiceCatalogController, PeopleController, AgendaController, PublicBookingController, TenantSettingsController, TenantCoverController, OwnerInviteController, DashboardController, BrandingController],
+  providers: [PlatformStaffGuard, PlatformStaffService, PlatformAuditService, ContactService, PrismaService, AuthService, RecoveryService, JwtAuthGuard, SystemGuard, BillingService, BillingSchedulerService, BookingService, ServiceOrderService, CashService, TenantRoleGuard, ServiceCatalogService, PeopleService, AgendaService, PublicBookingService, TenantSettingsService, OwnerInviteService, DashboardService, BrandingService, PlatformFaqService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

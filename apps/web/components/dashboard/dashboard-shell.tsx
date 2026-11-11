@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRightLeft, CalendarDays, ChevronDown, ChevronRight, ClipboardList,
-  AlertTriangle, CircleDollarSign, HelpCircle, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck,
+  AlertTriangle, CircleDollarSign, HelpCircle, ImageIcon, LayoutDashboard, ListChecks, Menu, Scissors, Settings2, ShieldCheck, ScrollText, UserCog,
   UsersRound, UserRoundPlus, WalletCards, X, type LucideIcon,
 } from "lucide-react";
 import { apiJson } from "../../lib/api";
@@ -38,7 +38,7 @@ export function DashboardShell({ children, mode, tenantId }: {
       apiJson<BillingSummary>(`/tenants/${tenantId}/billing`).catch(() => null) : Promise.resolve(null);
     Promise.all([profileRequest, billingRequest]).then(([result, billingResult]) => {
       if (!alive) return;
-      if (mode === "system" && result.globalRole !== "SYSTEM") {
+      if (mode === "system" && !["SYSTEM", "MANAGER"].includes(result.globalRole)) {
         router.replace("/painel"); return;
       }
       if (mode === "tenant" && !result.memberships.some(m =>
@@ -67,6 +67,8 @@ export function DashboardShell({ children, mode, tenantId }: {
     { title: "Identidade visual", href: "/system/configuracoes", icon: Settings2, exact: true },
     { title: "Padronização de imagens", href: "/system/configuracoes/imagens", icon: ImageIcon },
     { title: "Perguntas frequentes", href: "/system/faq", icon: HelpCircle },
+    { title: "Managers", href: "/system/managers", icon: UserCog },
+    { title: "Auditoria", href: "/system/auditoria", icon: ScrollText },
   ];
   const tenantItems: Item[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboard, exact: true },
@@ -78,13 +80,17 @@ export function DashboardShell({ children, mode, tenantId }: {
     { title: "Clientes", href: base + "/clientes", icon: ClipboardList },
     { title: "Configurações", href: base + "/configuracoes", icon: Settings2 },
   ];
-  const items = mode === "system" ? systemItems : tenantItems.filter(item =>
+  const managerPaths = ["/system", "/system/barbearias", "/system/mensalidades", "/system/convites", "/system/minha-conta"];
+  const managerAllowed = managerPaths.some(path => pathname === path);
+  const items = mode === "system" ? systemItems.filter(item =>
+    profile?.globalRole === "SYSTEM" || managerPaths.includes(item.href)) : tenantItems.filter(item =>
     membership?.role === "ADMIN" || !["Serviços", "Equipe", "Configurações"].includes(item.title));
   const current = items.find(item => item.exact ? pathname === item.href : pathname.startsWith(item.href + "/") || pathname === item.href);
   const currentTitle = pathname.endsWith("/minha-conta") ? "Minha conta" : current?.title ?? "Painel";
   const availableMemberships = profile?.memberships.filter(m =>
     ["ADMIN", "EMPLOYEE"].includes(m.role)) ?? [];
-  const canSwitchWorkspace = availableMemberships.length > 1;
+  const canSwitchWorkspace = availableMemberships.length > 1 ||
+    (profile?.globalRole === "SYSTEM" || profile?.globalRole === "MANAGER") && availableMemberships.length > 0;
 
   if (busy) return <div className="flex min-h-screen items-center justify-center bg-[#f6f7f4]">
     <div className="flex items-center gap-3 text-sm font-medium text-[#747a71]">
@@ -96,6 +102,19 @@ export function DashboardShell({ children, mode, tenantId }: {
     <p className="text-sm text-[#777c73]">{error || "Acesso indisponível."}</p>
     <Link href="/admin/login" className="rounded-xl bg-[#161715] px-5 py-3 text-sm font-semibold text-white">Entrar novamente</Link>
   </div>;
+
+  if (mode === "system" && profile.globalRole === "MANAGER" && !managerAllowed) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#f6f7f4] px-5">
+      <div className="max-w-md rounded-2xl border border-[#e2e5dd] bg-white p-8 text-center">
+        <ShieldCheck className="mx-auto text-[#929c8c]" size={30}/>
+        <h1 className="mt-4 text-xl font-bold">Área exclusiva do SYSTEM</h1>
+        <p className="mt-2 text-sm leading-6 text-[#798274]">Seu perfil MANAGER não possui permissão para esta página.</p>
+        <Link href="/system" className="mt-6 inline-flex rounded-xl bg-[#1c221b] px-5 py-3 text-xs font-semibold text-white">
+          Voltar à visão geral
+        </Link>
+      </div>
+    </div>;
+  }
 
   const links = <nav aria-label="Navegação principal" className="space-y-1">
     {items.map(item => {
@@ -152,7 +171,7 @@ export function DashboardShell({ children, mode, tenantId }: {
               <ChevronDown size={14} className="shrink-0 text-[#92978e]"/>
             </button>
             {showSwitch && <div role="menu" className="absolute right-0 top-[calc(100%+.5rem)] w-64 space-y-1 rounded-xl border border-[#e3e5df] bg-white p-2 shadow-xl md:left-0 md:right-auto">
-              {profile.globalRole === "SYSTEM" && <Link role="menuitem" href="/system" onClick={closeNavigation}
+              {["SYSTEM", "MANAGER"].includes(profile.globalRole) && <Link role="menuitem" href="/system" onClick={closeNavigation}
                 className="flex items-center gap-2 rounded-lg p-2.5 text-xs font-medium text-[#3d413a] hover:bg-[#f2f3ef]"><ShieldCheck size={15}/> Administração global</Link>}
               {availableMemberships.map(m =>
                 <Link role="menuitem" href={`/painel/barbearias/${m.tenantId}`} key={m.tenantId} onClick={closeNavigation}

@@ -3,7 +3,7 @@ import {
   OnModuleDestroy, OnModuleInit, Param, Patch, Post, Req, UseGuards,
 } from "@nestjs/common";
 import { IsDateString, IsInt, Max, Min } from "class-validator";
-import { JwtAuthGuard, SystemGuard } from "./auth";
+import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { PrismaService } from "./prisma.service";
 import { localParts, localToUtc } from "./scheduling-time";
 
@@ -281,20 +281,20 @@ export class BillingSchedulerService implements OnModuleInit, OnModuleDestroy {
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
 
-  @UseGuards(JwtAuthGuard, SystemGuard) @Get("system/billing")
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard) @Get("system/billing")
   systemOverview() { return this.billing.systemOverview(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard) @Patch("system/tenants/:tenantId/billing")
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard) @Patch("system/tenants/:tenantId/billing")
   configure(@Param("tenantId") tenantId: string, @Req() req: { user: { id: string } }, @Body() dto: BillingConfigDto) {
     return this.billing.configure(tenantId, req.user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, SystemGuard) @Patch("system/billing/:monthlyFeeId/paid")
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard) @Patch("system/billing/:monthlyFeeId/paid")
   markPaid(@Param("monthlyFeeId") monthlyFeeId: string, @Req() req: { user: { id: string } }) {
     return this.billing.markPaid(monthlyFeeId, req.user.id);
   }
 
-  @UseGuards(JwtAuthGuard, SystemGuard) @Post("system/billing/run")
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard) @Post("system/billing/run")
   run() { return this.billing.runDaily(); }
 
   @UseGuards(JwtAuthGuard) @Get("tenants/:tenantId/billing")

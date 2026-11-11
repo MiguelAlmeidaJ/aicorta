@@ -4,7 +4,7 @@ import {
 import { IsEmail, IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import { hash } from "bcryptjs";
 import { PrismaService } from "./prisma.service";
-import { JwtAuthGuard, SystemGuard } from "./auth";
+import { JwtAuthGuard, PlatformStaffGuard } from "./auth";
 import { TenantRoleGuard, TenantRoles } from "./tenant-role.guard";
 import { localParts, localToUtc } from "./scheduling-time";
 import { normalizeBrazilianWhatsapp, whatsappVariants } from "./phone";
@@ -58,7 +58,7 @@ export class DashboardService {
     });
   }
 
-  async createTenant(dto: CreateTenantDto) {
+  async createTenant(dto: CreateTenantDto, actorUserId?: string) {
     const whatsapp = normalizeBrazilianWhatsapp(dto.ownerWhatsapp);
     if (!whatsapp) throw new BadRequestException("WhatsApp inválido: informe DDD + celular (11 dígitos).");
     const passwordHash = await hash(dto.ownerPassword, 12);
@@ -82,6 +82,10 @@ export class DashboardService {
         await tx.membership.create({
           data: { userId: owner.id, tenantId: tenant.id, role: "ADMIN" },
         });
+        if (actorUserId) await tx.platformAudit.create({ data: {
+          actorUserId, action: "TENANT_CREATED", targetType: "TENANT", targetId: tenant.id,
+          details: { name: tenant.name, slug: tenant.slug },
+        } });
         return tx.tenant.findUniqueOrThrow({
           where: { id: tenant.id },
           select: {
@@ -100,10 +104,17 @@ export class DashboardService {
     }
   }
 
-  async setTenantStatus(id: string, status: "ACTIVE" | "SUSPENDED") {
-    return this.db.tenant.update({
-      where: { id }, data: { status, suspensionReason: status === "SUSPENDED" ? "MANUAL" : null },
-      select: { id: true, name: true, status: true },
+  async setTenantStatus(id: string, status: "ACTIVE" | "SUSPENDED", actorUserId?: string) {
+    return this.db.$transaction(async tx => {
+      const tenant = await tx.tenant.update({
+        where: { id }, data: { status, suspensionReason: status === "SUSPENDED" ? "MANUAL" : null },
+        select: { id: true, name: true, status: true },
+      });
+      if (actorUserId) await tx.platformAudit.create({ data: {
+        actorUserId, action: status === "SUSPENDED" ? "TENANT_SUSPENDED" : "TENANT_ACTIVATED",
+        targetType: "TENANT", targetId: id, details: { name: tenant.name },
+      } });
+      return tenant;
     });
   }
 
@@ -162,22 +173,22 @@ export class DashboardService {
 export class DashboardController {
   constructor(private readonly dashboards: DashboardService) {}
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get("system/dashboard")
   system() { return this.dashboards.system(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Get("system/tenants")
   tenants() { return this.dashboards.tenants(); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Post("system/tenants")
-  createTenant(@Body() dto: CreateTenantDto) { return this.dashboards.createTenant(dto); }
+  createTenant(@Body() dto: CreateTenantDto, @Req() req: { user: { id: string } }) { return this.dashboards.createTenant(dto, req.user.id); }
 
-  @UseGuards(JwtAuthGuard, SystemGuard)
+  @UseGuards(JwtAuthGuard, PlatformStaffGuard)
   @Patch("system/tenants/:tenantId/status")
-  setStatus(@Param("tenantId") tenantId: string, @Body() dto: ChangeTenantStatusDto) {
-    return this.dashboards.setTenantStatus(tenantId, dto.status);
+  setStatus(@Param("tenantId") tenantId: string, @Body() dto: ChangeTenantStatusDto, @Req() req: { user: { id: string } }) {
+    return this.dashboards.setTenantStatus(tenantId, dto.status, req.user.id);
   }
 
   @UseGuards(JwtAuthGuard, TenantRoleGuard) @TenantRoles("ADMIN", "EMPLOYEE")

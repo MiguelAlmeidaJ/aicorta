@@ -110,6 +110,7 @@ before(async () => {
 after(async () => {
   if (db) {
     // Remove only records created by this run; never clean an entire shared DB.
+    await db.platformAudit.deleteMany({ where: { actorUserId: { in: ids.users } } });
     await db.tenant.deleteMany({ where: { id: { in: ids.tenants } } });
     await db.ownerInvite.deleteMany({ where: { issuedById: { in: ids.users } } });
     await db.user.deleteMany({ where: { id: { in: ids.users } } });
@@ -154,6 +155,39 @@ test("E2E HTTP: onboarding, acesso entre tenants, agendamentos e concorrência",
       ownerName: "Sem permissão", ownerUsername: `denied${suffix}`,
       ownerEmail: `denied-${suffix}@example.test`, ownerWhatsapp: makePhone(21), ownerPassword: password,
     }, cookies(ownerLogin.headers))).status, 403);
+  });
+
+  await t.test("MANAGER acessa quatro áreas, mas não configurações, managers ou auditoria", async () => {
+    const created = await request("POST", "/api/system/managers", {
+      name: "Manager E2E", username: `manager${suffix}`,
+      email: `manager-${suffix}@example.test`, whatsapp: makePhone(44), password,
+    }, systemCookie);
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    const managerId = String(created.json.id);
+    ids.users.push(managerId);
+    assert.equal((await db.user.findUniqueOrThrow({ where: { id: managerId } })).globalRole, "MANAGER");
+    const login = await request("POST", "/api/auth/login", {
+      identifier: `manager${suffix}`, password,
+    });
+    assert.equal(login.status, 201);
+    const managerCookie = cookies(login.headers);
+    const me = await request("GET", "/api/auth/me", undefined, managerCookie);
+    assert.equal(me.json.globalRole, "MANAGER");
+    assert.equal((await request("GET", "/api/system/dashboard", undefined, managerCookie)).status, 200);
+    assert.equal((await request("GET", "/api/system/tenants", undefined, managerCookie)).status, 200);
+    assert.equal((await request("GET", "/api/system/billing", undefined, managerCookie)).status, 200);
+    assert.equal((await request("GET", "/api/auth/owner-invites", undefined, managerCookie)).status, 200);
+    assert.equal((await request("GET", "/api/system/managers", undefined, managerCookie)).status, 403);
+    assert.equal((await request("GET", "/api/system/audit", undefined, managerCookie)).status, 403);
+    assert.equal((await request("GET", "/api/system/faq", undefined, managerCookie)).status, 403);
+    assert.equal((await request("PATCH", "/api/branding", { name: "Não permitido" }, managerCookie)).status, 403);
+    assert.equal((await request("GET", "/api/system/audit", undefined, systemCookie)).status, 200);
+    const events = (await request("GET", "/api/system/audit", undefined, systemCookie)).json as unknown as
+      Array<{ action: string; actor: { id: string } | null }>;
+    assert.ok(events.some(event => event.action === "MANAGER_CREATED"));
+    const off = await request("PATCH", `/api/system/managers/${managerId}/status`, { active: "false" }, systemCookie);
+    assert.equal(off.status, 200);
+    assert.equal((await request("GET", "/api/system/dashboard", undefined, managerCookie)).status, 401);
   });
 
   await t.test("convite de proprietário de uso único cria dois tenants isolados", async () => {

@@ -14,7 +14,7 @@ export default function PanelEntry() {
     let active = true;
     apiJson<Session>("/auth/me").then(profile => {
       if (!active) return;
-      if (profile.globalRole === "SYSTEM") { router.replace("/system"); return; }
+      if (["SYSTEM", "MANAGER"].includes(profile.globalRole)) { router.replace("/system"); return; }
       const member = profile.memberships.find(m =>
         ["ADMIN", "EMPLOYEE"].includes(m.role) && m.tenant.status === "ACTIVE");
       router.replace(member ? `/painel/barbearias/${member.tenantId}` : "/meus-agendamentos");
