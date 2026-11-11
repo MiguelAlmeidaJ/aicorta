@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- capas hospedadas pela API configurada */
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, ArrowUpRight, MapPin, Search, Scissors } from "lucide-react";
 import { PublicHeader } from "../../components/public/public-header";
 import { PublicFooter } from "../../components/public/public-footer";
@@ -43,10 +43,7 @@ export default function BarbershopsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    let active = true;
-    return { active }; // state is managed by the effect below
-  }, []);
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
@@ -57,8 +54,7 @@ export default function BarbershopsPage() {
       .catch(() => { if (!controller.signal.aborted) setError("Não foi possível carregar as barbearias. Tente novamente."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [page, term]);
-  void load;
+  }, [page, term, revision]);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,7 +95,7 @@ export default function BarbershopsPage() {
         </p>}
       </div>
       {error && <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}
-        <button onClick={() => { setTerm(t => t + " "); setTerm(t => t.trim()); }} className="ml-3 underline" type="button">Tentar novamente</button>
+        <button onClick={() => { setRevision(value => value + 1); }} className="ml-3 underline" type="button">Tentar novamente</button>
       </div>}
       {loading ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
         {Array.from({length: 6},(_,i) => <div key={i} className="overflow-hidden rounded-[18px] border border-[#e5e8e1] bg-white">
