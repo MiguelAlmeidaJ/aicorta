@@ -87,3 +87,13 @@ sudo nginx -t
 ```
 
 Se front funciona mas login falha, confira `WEB_ORIGIN`, `NEXT_PUBLIC_API_URL`, HTTPS, cookies e headers CORS. Se a pagina exibir `localhost:3001` nas requisicoes, refaca o build com o `.env` correto. Se uma porta estiver ocupada, remova o processo duplicado em vez de iniciar outra copia.
+
+
+## Hotfix de navegação e favicon
+
+- O React/Next.js gerencia os elementos `<head>`. Não remova ícones com `document.querySelectorAll(...).remove()` nem altere o DOM de metadata manualmente: isso pode provocar o erro `removeChild` e impedir a navegação.
+- `INTERNAL_API_URL=http://127.0.0.1:3001/api` é usado **apenas** pelo Next.js no servidor para consultar a revisão atual da identidade visual e devolver a favicon publicada no SYSTEM.
+- O HTML declara uma favicon versionada `/favicon?v=<updatedAt>`, e a rota de favicon nunca substitui silenciosamente uma imagem configurada quando a API está indisponível.
+- No SYSTEM, publique a favicon em Configurações > Identidade visual. Recarregue a página após atualizar os processos. Verifique `https://www.aicorta.com.br/favicon` e `https://api.aicorta.com.br/api/branding/assets/favicon` em abas separadas: ambas devem exibir **a mesma** imagem.
+- Se persistir uma favicon antiga no navegador, faça uma atualização forçada (Ctrl+Shift+R) e verifique se não há cache na CDN ou proxy. A nova revisão no URL da favicon evita reuso indevido de cache.
+- Após atualizar o backend, confira o log de erros: `pm2 logs aicorta-api`; o proxy deve manter os dois processos online.
